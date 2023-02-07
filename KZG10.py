@@ -4,6 +4,8 @@ from random import randint
 from functools import reduce
 import operator
 from py_ecc import bn128 as curve
+from BlockchainLib import *
+from BLS import *
 
 """
 Implementation of PolyCommit_{DL} from:
@@ -302,10 +304,17 @@ def Prove():
 	# Verifier
 	g1_phi_at_i = curve.multiply(curve.G1, int(phi_at_i))
 	g1_phi_at_x_sub_i = curve.add(g1_phi_at_x, curve.neg(g1_phi_at_i))
-	a = curve.pairing(g2_x_sub_i, g1_psi_i_at_x)
-	b = curve.pairing(curve.G2, curve.neg(g1_phi_at_x_sub_i))
-	ab = a*b
-	print('ab', ab, ab == curve.FQ12.one())
+	"""
+	devPapas
+	"""
+	contract = smartContract()
+	tx = contract.verify(formatG1(g1_phi_at_x_sub_i),formatG1(g1_phi_at_i), int(i), int(x))
+	print(tx)
+	#a = curve.pairing(g2_x_sub_i, g1_psi_i_at_x)
+	#b = curve.pairing(curve.G2, curve.neg(g1_phi_at_x_sub_i))
+	#ab = a*b
+	#print(x)
+	#print('ab', ab, ab == curve.FQ12.one())
 
 if __name__ == "__main__":
 	Prove()
