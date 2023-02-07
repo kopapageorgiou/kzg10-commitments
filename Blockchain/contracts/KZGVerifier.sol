@@ -1,6 +1,6 @@
 // Modified from https://github.com/appliedzkp/semaphore/blob/master/contracts/sol/verifier.sol
 pragma experimental ABIEncoderV2;
-pragma solidity ^0.8.0;
+pragma solidity ^0.5.0;
 
 import "./Pairing.sol";
 import { Constants } from "./Constants.sol";
