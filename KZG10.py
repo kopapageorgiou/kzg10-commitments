@@ -6,6 +6,7 @@ import operator
 from py_ecc import bn128 as curve
 from BlockchainLib import *
 from BLS import *
+from Constants import *
 
 """
 Implementation of PolyCommit_{DL} from:
@@ -251,6 +252,7 @@ def CommitDivision(PK: TrustedSetup, y: Field, coeff: List[Field]):
 def Prove():
 	F = GF(curve.curve_order)
 	coeff = [F.random() for _ in range(3)]
+	print(coeff)
 	PK = TrustedSetup.generate(F, len(coeff), True)
 
 	"""
@@ -277,39 +279,53 @@ def Prove():
 	# Verify with trusted information
 	x = PK.alpha_powers[1]
 	phi_at_x = polynomial(x, coeff)
+	print("phi_at_x",phi_at_x)
 	assert phi_at_x == CommitSumTrusted(PK, coeff)
 
 	i = F(3)
 	phi_at_i = polynomial(i, coeff)
+	#print("phi_at_i",phi_at_i)
 	a = polynomial(x, coeff) - phi_at_i
 	b = a / (x - i)
 
 	psi_i_at_x = CommitDivisionTrusted(PK, i, coeff)
+	print("psi_i_at_x",psi_i_at_x)
 	assert psi_i_at_x == b
 	assert psi_i_at_x * (x-i) == phi_at_x - phi_at_i
 
 
 	# Then make commitment without access to trusted setup secrets
 	g1_phi_at_x = CommitSum(PK, coeff)  # Commit to polynomial
-
+	print("g1_phi_at_x", g1_phi_at_x)
 	# Commit to an evaluation of the same polynomial at i
 	i = F.random()  # randomly sampled i
 	phi_at_i = polynomial(i, coeff)	
+	print("phi_at_i", phi_at_i)
 	g1_psi_i_at_x = CommitDivision(PK, i, coeff)
+	print("g1_psi_i_at_x", g1_psi_i_at_x)
 
 	# Compute `x - i` in G2
 	g2_i = curve.multiply(curve.G2, int(i))
+	print("g2_i", g2_i)
 	g2_x_sub_i = curve.add(PK.g2_powers[1], curve.neg(g2_i)) # x-i
+	print("g2_x_sub_i", g2_x_sub_i)
 
 	# Verifier
 	g1_phi_at_i = curve.multiply(curve.G1, int(phi_at_i))
+	print("g1_phi_at_i", g1_phi_at_i)
 	g1_phi_at_x_sub_i = curve.add(g1_phi_at_x, curve.neg(g1_phi_at_i))
+	print("g1_phi_at_x_sub_i", g1_phi_at_x_sub_i)
 	"""
 	devPapas
 	"""
+	coeffs = [int(c) for c in coeff]
+	print(coeffs)
 	contract = smartContract()
-	tx = contract.verify(formatG1(g1_phi_at_x_sub_i),formatG1(g1_phi_at_i), int(i), int(x))
-	print(tx)
+	tx = contract.commit(coeffs)
+	print("contract", tx)
+	#tx = contract.evalPolyAt(coeffs, int(i))
+	tx = contract.verify(formatG1(g1_psi_i_at_x),formatG1(g1_phi_at_x_sub_i), int(i), int(x))
+	print("contract", tx)
 	#a = curve.pairing(g2_x_sub_i, g1_psi_i_at_x)
 	#b = curve.pairing(curve.G2, curve.neg(g1_phi_at_x_sub_i))
 	#ab = a*b

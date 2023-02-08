@@ -1,6 +1,7 @@
 from functools import reduce
 import operator
-
+from BlockchainLib import *
+from BLS import *
 from KZG10 import TrustedSetup, CommitDivision, curve, GF, polynomial, CommitSum
 
 
@@ -65,7 +66,7 @@ def main():
 	n_coeffs = 3
 
 	poly_coeffs = [ [F.random() for _ in range(n_coeffs)] for i in range(n_polynomials) ]
-
+	print(poly_coeffs)
 	PK = TrustedSetup.generate(F, n_coeffs, True)
 
 	# Commit to polynomials, phi(f_i, X)
@@ -75,10 +76,10 @@ def main():
 
 	# Prover creates a random scalar
 	z = F.random()
-
+	print("z", z)
 	# Verifier sends random scalar
 	gamma = F.random()
-
+	print("gamma", gamma)
 	# Prover computes the polynomial commitment h(X)
 	s = []
 	W = None
@@ -88,19 +89,22 @@ def main():
 		g1_h_i = curve.multiply(h_i, int(gamma**(i+1))) # y^i * h_i
 		W = g1_h_i if W is None else curve.add(W, g1_h_i)
 	# Prover sends W, z and s to verifier
-
+	print("W", W)
 	# Verifier computes the element F
 	g1_F = None
 	for i, cm_i in enumerate(cm):
 		F_i = curve.multiply(cm_i, int(gamma**(i+1)))
 		g1_F = F_i if g1_F is None else curve.add(g1_F, F_i)
-
+	print("g1_F", g1_F)
 	# And verifier computes the element `v`
 	v = reduce(operator.add, [(gamma**(i+1)) * s_i for i, s_i in enumerate(s)])
+	print("v", v)
 	g1_v = curve.multiply(curve.G1, int(v))
+	print("g1_v", g1_v)
 
 	# Then performs the pairing equation
 	g1_F_minus_v = curve.add(g1_F, curve.neg(g1_v))
+	print("g1_F_minus_v", g1_F_minus_v)
 	g2_z = curve.multiply(curve.G2, int(z))
 	g2_x_minus_z = curve.add(PK.g2_powers[1], curve.neg(g2_z))
 	a = curve.pairing(curve.G2, g1_F_minus_v)
