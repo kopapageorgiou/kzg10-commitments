@@ -1,11 +1,16 @@
 from typing import List, NamedTuple, Tuple, Union
-from math import ceil, log2
 from random import randint
+from math import ceil, log2
 from functools import reduce
 import operator
 from py_ecc import bn128 as curve
 from BlockchainLib import *
 from BLS import *
+import sys
+sys.path.append('./py_pairing-master/py_ecc/bn128')
+from bn128_field_elements import FQ
+from bn128_curve import add
+from bn128_curve import multiply, is_on_curve
 from Constants import *
 
 """
@@ -132,15 +137,17 @@ class TrustedSetup(NamedTuple):
 		Then return `t` powers of `alpha` in G1, and the representation of `alpha` in G2
 		 g, g^a, ... g^{a^t}
 		"""
-		alpha = F.random()
+		#alpha = F.random()
+		alpha = F(21888242871839275222246405745257275088548364400416034343698204186575808495617)
 		alpha_powers = [F(1)]
 		g1_powers = [curve.G1]
 		g2_powers = [curve.G2]
-		for i in range(t+1):
+		for i in range(t):
 			alpha_powers.append(alpha_powers[-1] * alpha)
 			if g1andg2:
 				g1_powers.append(curve.multiply(g1_powers[-1], int(alpha)))
 				g2_powers.append(curve.multiply(g2_powers[-1], int(alpha)))
+		print("g1_powers= ", g1_powers)
 		
 		return cls(F, t, g1_powers, g2_powers, alpha_powers)
 
@@ -167,7 +174,7 @@ def CommitProduct(PK: TrustedSetup, coeff: List[Field]):
 	k = (n*(n+1))//2  # equivalent to: reduce(operator.add, range(n))
 	element = PK.g1_powers[k]
 	product = PK.F(1)
-	for c_i in coeffs:
+	for c_i in coeff:
 		product *= c_i
 	return curve.multiply(element, product)
 
@@ -181,10 +188,131 @@ def CommitSum(PK: TrustedSetup, coeff: List[Field]):
 	Copute commitment to the evaluation of a polynomial with coefficients
 	At `x`, where `x` is part of the trusted setup
 	"""
+	coeffs = []
+	g1Powers = []
+	for g1 in PK.g1_powers:
+		print("G1Power", g1)
+	print("here2",reduce(curve.add, [curve.multiply(PK.g1_powers[i], int(c_i))
+							  for i, c_i in enumerate(coeff)]))
 	return reduce(curve.add, [curve.multiply(PK.g1_powers[i], int(c_i))
 							  for i, c_i in enumerate(coeff)])
 
+def mul_scalar(point, k: int):
 
+
+	if k < 0:
+	# k * point = -k * (-point)
+		return mul_scalar(-k, point_neg(point))
+
+	result = None
+	addend = point
+
+	while k:
+		if k & 1:
+		# Add.
+			result = add(result, addend)
+
+	# Double.
+		addend = add(addend, addend)
+
+		k >>= 1
+
+		assert is_on_curve(result, FQ(3))
+		#print(result)
+
+	return result
+
+def point_neg(point):
+    """Returns -point."""
+    assert is_on_curve(point)
+
+    if point is None:
+        # -0 = 0
+        return None
+
+    x, y = point
+    result = (x, -y % curve.p)
+
+    assert is_on_curve(result)
+
+    return result
+
+def point_add(point1, point2):
+    """Returns the result of point1 + point2 according to the group law."""
+    assert is_on_curve(point1, FQ(3))
+    assert is_on_curve(point2, FQ(3))
+
+    if point1 is None:
+        # 0 + point2 = point2
+        return point2
+    if point2 is None:
+        # point1 + 0 = point1
+        return point1
+
+    x1, y1 = point1
+    x2, y2 = point2
+
+    if x1 == x2 and y1 != y2:
+        # point1 + (-point1) = 0
+        return None
+
+    if x1 == x2:
+        # This is the case point1 == point2.
+        m = (3 * x1 * x1 + curve.a) * inverse_mod(2 * y1, curve.p)
+    else:
+        # This is the case point1 != point2.
+        m = (y1 - y2) * inverse_mod(x1 - x2, curve.p)
+
+    x3 = m * m - x1 - x2
+    y3 = y1 + m * (x3 - x1)
+    result = (x3 % curve.p, -y3 % curve.p)
+
+    assert is_on_curve(result)
+
+    return result
+
+def inverse_mod(k, p):
+    """Returns the inverse of k modulo p.
+    This function returns the only integer x such that (x * k) % p == 1.
+    k must be non-zero and p must be a prime.
+    """
+    if k == 0:
+        raise ZeroDivisionError('division by zero')
+
+    if k < 0:
+        # k ** -1 = p - (-k) ** -1  (mod p)
+        return p - inverse_mod(-k, p)
+
+    # Extended Euclidean algorithm.
+    s, old_s = 0, 1
+    t, old_t = 1, 0
+    r, old_r = p, k
+
+    while r != 0:
+        quotient = old_r // r
+        old_r, r = r, old_r - quotient * r
+        old_s, s = s, old_s - quotient * s
+        old_t, t = t, old_t - quotient * t
+
+    gcd, x, y = old_r, old_s, old_t
+
+    assert gcd == 1
+    assert (k * x) % p == 1
+
+    return x % p
+
+
+# Functions that work on curve points #########################################
+
+def commit(coeffs):
+	result = (FQ(0), FQ(0))
+	#print("coeffs",coeffs)
+	for i,c in enumerate(coeffs):
+		
+		#print(i,c)
+		result = add(result, curve.multiply((FQ(int(SRS_G1_X[i],base=16)), FQ(int(SRS_G1_Y[i],base=16))), c))
+		#print(FQ(int(SRS_G1_X[i],base=16)), FQ(int(SRS_G1_Y[i],base=16)))
+	return result
 def CommitRemainder(PK: TrustedSetup, y: Field, coeff: List[Field]):
 	# TODO: implement
 	"""
@@ -251,8 +379,8 @@ def CommitDivision(PK: TrustedSetup, y: Field, coeff: List[Field]):
 
 def Prove():
 	F = GF(curve.curve_order)
-	coeff = [F.random() for _ in range(3)]
-	print(coeff)
+	coeff = [F.random() for _ in range(2)]
+	#print(coeff)
 	PK = TrustedSetup.generate(F, len(coeff), True)
 
 	"""
@@ -279,7 +407,7 @@ def Prove():
 	# Verify with trusted information
 	x = PK.alpha_powers[1]
 	phi_at_x = polynomial(x, coeff)
-	print("phi_at_x",phi_at_x)
+	#print("phi_at_x",phi_at_x)
 	assert phi_at_x == CommitSumTrusted(PK, coeff)
 
 	i = F(3)
@@ -289,26 +417,26 @@ def Prove():
 	b = a / (x - i)
 
 	psi_i_at_x = CommitDivisionTrusted(PK, i, coeff)
-	print("psi_i_at_x",psi_i_at_x)
+	#print("psi_i_at_x",psi_i_at_x)
 	assert psi_i_at_x == b
 	assert psi_i_at_x * (x-i) == phi_at_x - phi_at_i
 
 
 	# Then make commitment without access to trusted setup secrets
 	g1_phi_at_x = CommitSum(PK, coeff)  # Commit to polynomial
-	print("g1_phi_at_x", g1_phi_at_x)
+	#print("g1_phi_at_x", g1_phi_at_x)
 	# Commit to an evaluation of the same polynomial at i
 	i = F.random()  # randomly sampled i
 	phi_at_i = polynomial(i, coeff)	
-	print("phi_at_i", phi_at_i)
+	print("phi_at_i", phi_at_i) #!CORRECT
 	g1_psi_i_at_x = CommitDivision(PK, i, coeff)
 	print("g1_psi_i_at_x", g1_psi_i_at_x)
 
 	# Compute `x - i` in G2
 	g2_i = curve.multiply(curve.G2, int(i))
-	print("g2_i", g2_i)
+	#print("g2_i", g2_i)
 	g2_x_sub_i = curve.add(PK.g2_powers[1], curve.neg(g2_i)) # x-i
-	print("g2_x_sub_i", g2_x_sub_i)
+	#print("g2_x_sub_i", g2_x_sub_i)
 
 	# Verifier
 	g1_phi_at_i = curve.multiply(curve.G1, int(phi_at_i))
@@ -321,16 +449,26 @@ def Prove():
 	coeffs = [int(c) for c in coeff]
 	print(coeffs)
 	contract = smartContract()
+	
+	#tx = contract.evalPolyAt(coeffs, int(i))
+	#print("contract", tx)
+	custom = commit(coeffs)
+	print("custom",custom)
 	tx = contract.commit(coeffs)
 	print("contract", tx)
-	#tx = contract.evalPolyAt(coeffs, int(i))
-	tx = contract.verify(formatG1(g1_psi_i_at_x),formatG1(g1_phi_at_x_sub_i), int(i), int(x))
-	print("contract", tx)
-	#a = curve.pairing(g2_x_sub_i, g1_psi_i_at_x)
-	#b = curve.pairing(curve.G2, curve.neg(g1_phi_at_x_sub_i))
-	#ab = a*b
-	#print(x)
-	#print('ab', ab, ab == curve.FQ12.one())
+	
+	#tx = contract.pairing(	formatG1(g1_psi_i_at_x),
+	#						formatG2(curve.G2),
+	#						formatG1(curve.neg(g1_phi_at_x_sub_i)),
+	#	       				formatG2(g2_x_sub_i)
+	#						)
+	#print("contract", tx)
+	a = curve.pairing(g2_x_sub_i, g1_psi_i_at_x)
+	b = curve.pairing(curve.G2, curve.neg(g1_phi_at_x_sub_i))
+	ab = a*b
+	print(a)
+	print(b)
+	print('ab', ab, ab == curve.FQ12.one())
 
 if __name__ == "__main__":
 	Prove()

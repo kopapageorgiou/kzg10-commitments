@@ -27,6 +27,15 @@ contract Verifier is Constants {
         Y: [ Constants.SRS_G2_Y_0[1], Constants.SRS_G2_Y_1[1] ]
     });
 
+    function pairingTest(
+        Pairing.G1Point memory a1,
+        Pairing.G2Point memory a2,
+        Pairing.G1Point memory b1,
+        Pairing.G2Point memory b2
+    ) public view returns (bool) {
+        return Pairing.pairing(a1, a2, b1, b2);
+    }
+
     /*
      * Verifies a single-point evaluation of a polynominal using the KZG
      * commitment scheme.
@@ -47,7 +56,7 @@ contract Verifier is Constants {
         Pairing.G1Point memory _proof,
         uint256 _index,
         uint256 _value
-    ) public view returns (bool) {
+    ) public view returns (Pairing.G1Point memory, Pairing.G1Point memory, Pairing.G1Point memory, bool) {
         // Make sure each parameter is less than the prime q
         require(_commitment.X < BABYJUB_P, "Verifier.verifyKZG: _commitment.X is out of range");
         require(_commitment.Y < BABYJUB_P, "Verifier.verifyKZG: _commitment.Y is out of range");
@@ -90,12 +99,15 @@ contract Verifier is Constants {
 
         // Returns true if and only if
         // e((index * proof) + (commitment - aCommitment), G2.g) * e(-proof, xCommit) == 1
-        return Pairing.pairing(
+        return (commitmentMinusA,
+            negProof,
+            indexMulProof,
+            Pairing.pairing(
             Pairing.plus(indexMulProof, commitmentMinusA),
             g2Generator,
             negProof,
             SRS_G2_1
-        );
+        ));
     }
 
     /*
@@ -243,4 +255,6 @@ contract Verifier is Constants {
         verifyMulti(_commitment, _proof, _indices, _values, _iCoeffs, _zCoeffs);
     }
     */
+
+    
 }

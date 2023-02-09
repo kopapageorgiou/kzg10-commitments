@@ -29,7 +29,6 @@ class smartContract(object):
                 self.contract = self.web3.eth.contract(address=address, abi=abi)
         except:
             print('An error occured while loading abi from file')
-        
 
     def verify(self, commitment, proof, index, value):
         return self.contract.functions.verify(commitment, proof, index, value).call()
@@ -39,3 +38,6 @@ class smartContract(object):
 
     def evalPolyAt(self, coefficients, index):
         return self.contract.functions.evalPolyAt(coefficients, index).call()
+    
+    def pairing(self, a1, a2, b1, b2):
+        return self.contract.functions.pairingTest(a1,a2,b1,b2).call()

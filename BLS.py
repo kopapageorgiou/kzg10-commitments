@@ -125,7 +125,7 @@ def formatG2(data):
     p1, p2 = data
     x1, x2 = p1.coeffs
     y1, y2 = p2.coeffs
-    return ((int(x1),int(x2)),(int(y1),int(y2)))
+    return ([int(x1),int(x2)],[int(y1),int(y2)])
 
 """
 #! Method to format a G1 point in order to be recognized from the smart contract's methods
