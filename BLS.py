@@ -134,3 +134,8 @@ def formatG2(data):
 def formatG1(data):
     x, y = data
     return (int(x), int(y))
+
+def formatG1_FQ(data):
+    x, y = data
+    print((int(str(x)), int(str(y))))
+    return (int(str(x)), int(str(y)))

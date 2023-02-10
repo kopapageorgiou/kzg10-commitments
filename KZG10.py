@@ -138,8 +138,8 @@ class TrustedSetup(NamedTuple):
 		Then return `t` powers of `alpha` in G1, and the representation of `alpha` in G2
 		 g, g^a, ... g^{a^t}
 		"""
-		#alpha = F.random()
-		alpha = F(21888242871839275222246405745257275088548364400416034343698204186575808495617)
+		alpha = F.random()
+		#alpha = F(21888242871839275222246405745257275088548364400416034343698204186575808495617)
 		alpha_powers = [F(1)]
 		g1_powers = [curve.G1]
 		g2_powers = [curve.G2]
@@ -428,6 +428,7 @@ def Prove():
 	#print("g1_phi_at_x", g1_phi_at_x)
 	# Commit to an evaluation of the same polynomial at i
 	i = F.random()  # randomly sampled i
+	print("i", i)
 	phi_at_i = polynomial(i, coeff)	
 	print("phi_at_i", phi_at_i) #!CORRECT
 	g1_psi_i_at_x = CommitDivision(PK, i, coeff)
@@ -476,7 +477,7 @@ def testRun():
 	contract = smartContract()
 	
 	F = GF(curve.curve_order)
-	number_of_coeffs = 2
+	number_of_coeffs = 3
 	coeff = []
 	for i in range(number_of_coeffs):
 		c = int(F(poly(i)))
@@ -484,14 +485,15 @@ def testRun():
 		coeff.append(c)
 	#coeff = [int(poly(i)) for i in range(number_of_coeffs)]
 	print("coefficents =", coeff)
-	x_val = generate_random_x()
+	x_val=1
 	print("x_random =", x_val)
-	x_val_formatted = int(str(x_val))
-	commit = testAdd(coeff)
-	print("add = ", commit)
-	proof = generate_proof(coeff, x_val_formatted, commit)
+	#x_val_formatted = int(x_val)
+	commit = generate_commitment_2(coeff)
+	print("commit = ", commit)
+	(proof, y_val) = genProof(coeff, x_val)
+	#proof = generate_proof(coeff, x_val_formatted, commit)
 	print("proof =", proof)
-	tx = contract.testAdd(coeff)
+	tx = contract.verify(formatG1_FQ(commit), formatG1_FQ(proof), x_val, y_val)
 	print("contract", tx)
 if __name__ == "__main__":
 	#Prove()

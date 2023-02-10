@@ -44,3 +44,6 @@ class smartContract(object):
     
     def testAdd(self, coeffs):
         return self.contract.functions.testAdd(coeffs).call()
+
+    def testMul(self, s):
+        return self.contract.functions.testMul(s).call()
