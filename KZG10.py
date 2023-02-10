@@ -12,6 +12,7 @@ from bn128_field_elements import FQ
 from bn128_curve import add
 from bn128_curve import multiply, is_on_curve
 from Constants import *
+from test import *
 
 """
 Implementation of PolyCommit_{DL} from:
@@ -470,8 +471,31 @@ def Prove():
 	print(b)
 	print('ab', ab, ab == curve.FQ12.one())
 
+
+def testRun():
+	contract = smartContract()
+	
+	F = GF(curve.curve_order)
+	number_of_coeffs = 2
+	coeff = []
+	for i in range(number_of_coeffs):
+		c = int(F(poly(i)))
+		print(c , type(c))
+		coeff.append(c)
+	#coeff = [int(poly(i)) for i in range(number_of_coeffs)]
+	print("coefficents =", coeff)
+	x_val = generate_random_x()
+	print("x_random =", x_val)
+	x_val_formatted = int(str(x_val))
+	commit = testAdd(coeff)
+	print("add = ", commit)
+	proof = generate_proof(coeff, x_val_formatted, commit)
+	print("proof =", proof)
+	tx = contract.testAdd(coeff)
+	print("contract", tx)
 if __name__ == "__main__":
-	Prove()
+	#Prove()
+	testRun()
 
 
 

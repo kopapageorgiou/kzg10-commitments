@@ -6,7 +6,7 @@ import "./Pairing.sol";
 import { Constants } from "./Constants.sol";
 
 contract Verifier is Constants {
-
+    uint256 private constant FIELD_MODULUS = 0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47;
     using Pairing for *;
 
     // The G1 generator
@@ -134,6 +134,33 @@ contract Verifier is Constants {
             );
         }
         return result;
+    }
+    function testAdd(
+        uint256[] memory coefficients
+    ) public view returns (Pairing.G1Point memory) {
+
+        Pairing.G1Point memory result = Pairing.G1Point(0, 0);
+
+        for (uint256 i = 0; i < coefficients.length; i ++) {
+            result = _FQ2Add(
+                result,
+                    Pairing.G1Point({
+                        X: Constants.SRS_G1_X[i],
+                        Y: Constants.SRS_G1_Y[i]
+                    })
+            );
+        }
+        return result;
+    }
+    function _FQ2Add(
+        Pairing.G1Point memory p1,
+        Pairing.G1Point memory p2
+    ) internal pure returns(Pairing.G1Point memory) {
+        return (Pairing.G1Point({
+            X: addmod(p1.X, p2.X, FIELD_MODULUS),
+            Y: addmod(p1.Y, p2.Y, FIELD_MODULUS)
+        })
+        );
     }
 
     /*

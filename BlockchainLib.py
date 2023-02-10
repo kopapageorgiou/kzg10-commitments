@@ -41,3 +41,6 @@ class smartContract(object):
     
     def pairing(self, a1, a2, b1, b2):
         return self.contract.functions.pairingTest(a1,a2,b1,b2).call()
+    
+    def testAdd(self, coeffs):
+        return self.contract.functions.testAdd(coeffs).call()
