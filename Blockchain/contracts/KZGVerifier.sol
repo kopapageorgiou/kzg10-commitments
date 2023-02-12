@@ -58,7 +58,7 @@ contract Verifier is Constants {
         BLSVerification.G1Point memory _proof,
         uint256 _index,
         uint256 _value
-    ) public returns (BLSVerification.G1Point memory, BLSVerification.G1Point memory, BLSVerification.G1Point memory, bool) {
+    ) public returns (bool) {
         // Make sure each parameter is less than the prime q
         require(_commitment.X < BABYJUB_P, "Verifier.verifyKZG: _commitment.X is out of range");
         require(_commitment.Y < BABYJUB_P, "Verifier.verifyKZG: _commitment.Y is out of range");
@@ -101,15 +101,12 @@ contract Verifier is Constants {
 
         // Returns true if and only if
         // e((index * proof) + (commitment - aCommitment), G2.g) * e(-proof, xCommit) == 1
-        return (commitmentMinusA,
-            negProof,
-            indexMulProof,
-            BLSVerification.pairing2(
+        return BLSVerification.pairing2(
             BLSVerification.add(indexMulProof, commitmentMinusA),
             g2Generator,
             negProof,
             SRS_G2_1
-        ));
+        );
     }
 
     /*

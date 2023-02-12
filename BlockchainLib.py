@@ -9,7 +9,6 @@ class smartContract(object):
         try:
             config.read(settings)
             addr = f"{config['SERVER']['Address']}:{config['SERVER']['Port']}"
-            print(addr)
             timeout = int(config['SERVER']['Timeout'])
             path = config['SMART CONTRACT']["Abi"]
         except:

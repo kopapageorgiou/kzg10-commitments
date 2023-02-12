@@ -1,549 +1,159 @@
 from typing import List, NamedTuple, Tuple, Union
-from random import randint
-from math import ceil, log2
+import json
 from functools import reduce
-import operator
+from py_ecc.fields import bn128_FQ as FQ
 from py_ecc import bn128 as curve
-from BlockchainLib import *
-from BLS import *
-import sys
-sys.path.append('./py_pairing-master/py_ecc/bn128')
-from bn128_field_elements import FQ
-from bn128_curve import add
-from bn128_curve import multiply, is_on_curve
-from Constants import *
-from test import *
+from py_ecc.typing import Field
+from random import randint
 
-"""
-Implementation of PolyCommit_{DL} from:
-"Constant-Size Commitments to Polynomials and Their Applications"
- - Aniket Kate, Gregory M. Zaverucha, and Ian Goldberg
- - Max Planck Institute for Software Systems (MPI-SWS)
- - https://www.cypherpunks.ca/~iang/pubs/PolyCommit-AsiaCrypt.pdf
- - http://cacr.uwaterloo.ca/techreports/2010/cacr2010-10.pdf (extended version)
-Section 3.2
-"""
+G1_POINTS = []
 
+class KZG10(object):
 
+    def __init__(self) -> None:
+        with open('taug1_65536.json', 'r') as file:
+            g1_points = json.load(file)
+        file.close()
+        
+        for point in g1_points:
+            G1_POINTS.append(format_to_FQ(int(point[0], base=16), int(point[1], base=16)))
 
-def as_bits_bytes(n):
-	n_bits = ceil(log2(n))
-	n_bytes = (n_bits + (8 - (n_bits % 8))) // 8
-	return n_bits, n_bytes
+        self.F = GF(curve.curve_order)
+        
+    def evalPolyAt(self, coefficients: List[Field], index: Field):
+        result = coefficients[0]
+        for c_i in coefficients[1:]:
+            result += c_i * index
+            index = index*index
+        return result
+    
+    def generate_coeffs(self, amount: int):
+        return [self.F.random() for _ in range(amount-1)]
+    
+    def generate_proof(self, coefficients: List[Field], index: Field):
+        n = len(coefficients)
+        F = GF(curve.curve_order)
+        y_powers = [F(1)]
+        
+        for i in range(n):
+            y_powers.append(y_powers[-1] * index)
 
-FIELD_MODULUS = curve.field_modulus
-FIELD_MODULUS_bits, FIELD_MODULUS_bytes = as_bits_bytes(FIELD_MODULUS)
+        result = None
+        for i in range(0, n-1):
+            for j in range(i, -1, -1):
+                a = G1_POINTS[i]
+                b = y_powers[i-j]
+                c = coefficients[i+1]
+                term = curve.multiply(a, int(b*c))
+                result = term if result is None else curve.add(result, term)
+        return result
+    
+    def get_index_x(self, index: int):
+        return self.F(index)
+    
 
-CURVE_ORDER = curve.curve_order
-CURVE_ORDER_bits, CURVE_ORDER_bytes = as_bits_bytes(CURVE_ORDER)
-
-assert FIELD_MODULUS_bytes == 32
-assert CURVE_ORDER_bytes == 32
-
-PointG1 = Tuple[curve.FQ, curve.FQ]
-PointG2 = Tuple[curve.FQ2, curve.FQ2]
-
+    """
+	Copute commitment to the evaluation of the polynomial given the coefficients
+	"""
+    def generate_commitment(self, coefficients: List[Field]):
+        return reduce(curve.add, [curve.multiply(G1_POINTS[i], int(c_i))
+							        for i, c_i in enumerate(coefficients)])
 
 class Field(object):
-	def __init__(self, value, modulus: int):
-		if isinstance(value, Field):
-			value = value.v
-		else:
-			value = value % modulus
-		self.v = value
-		self.m = modulus
+    def __init__(self, value, modulus: int):
+        if isinstance(value, Field):
+            value = value.v
+        else:
+            value = value % modulus
+        self.v = value
+        self.m = modulus
 
-	def __eq__(self, other):
-		if isinstance(other, int):
-			return self.v == other % self.m
-		elif isinstance(other, Field):
-			return self.v == other.v and self.m == other.m
-		else:
-			raise ValueError(f'Cannot compare {self} with {other}')
+    def __eq__(self, other):
+        if isinstance(other, int):
+            return self.v == other % self.m
+        elif isinstance(other, Field):
+            return self.v == other.v and self.m == other.m
+        else:
+            raise ValueError(f'Cannot compare {self} with {other}')
 
-	def __int__(self):
-		return self.v
+    def __int__(self):
+        return self.v
 
-	def __add__(self, other):
-		if isinstance(other, Field):
-			other = other.v
-		return Field(self.v + other, self.m)
+    def __add__(self, other):
+        if isinstance(other, Field):
+            other = other.v
+        return Field(self.v + other, self.m)
 
-	def __neg__(self):
-		return Field(-self.v, self.m)
+    def __neg__(self):
+        return Field(-self.v, self.m)
 
-	def __mul__(self, other):
-		if isinstance(other, Field):
-			other = other.v
-		return Field(self.v * other, self.m)
+    def __mul__(self, other):
+        if isinstance(other, Field):
+            other = other.v
+        return Field(self.v * other, self.m)
 
-	def __repr__(self):
-		return f"Field<{self.v}>"
+    def __repr__(self):
+        return f"Field<{self.v}>"
 
-	def __sub__(self, other):
-		if isinstance(other, Field):
-			other = other.v
-		return Field(self.v - other, self.m)
+    def __sub__(self, other):
+        if isinstance(other, Field):
+            other = other.v
+        return Field(self.v - other, self.m)
 
-	def __truediv__(self, other):
-		return self * other.inverse()
+    def __truediv__(self, other):
+        return self * other.inverse()
 
-	def __pow__(self, other):
-		assert isinstance(other, int)
-		return Field(pow(self.v, other, self.m), self.m)
+    def __pow__(self, other):
+        assert isinstance(other, int)
+        return Field(pow(self.v, other, self.m), self.m)
 
-	def inverse(self):
-		return Field(pow(self.v, self.m-2, self.m), self.m)
-
-
+    def inverse(self):
+        return Field(pow(self.v, self.m-2, self.m), self.m)
+    
 class GF(object):
-	def __init__(self, modulus: int):
-		self.m = modulus
+    def __init__(self, modulus: int):
+        self.m = modulus
 
-	def primitive_root(self, n: int):
-		"""
-		Find a primitive n-th root of unity
-		 - http://www.csd.uwo.ca/~moreno//AM583/Lectures/Newton2Hensel.html/node9.html
-		 - https://crypto.stackexchange.com/questions/63614/finding-the-n-th-root-of-unity-in-a-finite-field
-		"""
-		assert n >= 2
-		x = 2
-		while True:
-			# x != 0, g = x^(q-1/n)
-			# if g^(n/2) != 1, then it is a primitive n-th root
-			g = pow(int(x), (self.m-1)//n, self.m)
-			if pow(g, n//2, self.m) != 1:
-				return self(g)
-			x += 1
+    def primitive_root(self, n: int):
+        """
+        Find a primitive n-th root of unity
+            - http://www.csd.uwo.ca/~moreno//AM583/Lectures/Newton2Hensel.html/node9.html
+            - https://crypto.stackexchange.com/questions/63614/finding-the-n-th-root-of-unity-in-a-finite-field
+        """
+        assert n >= 2
+        x = 2
+        while True:
+            # x != 0, g = x^(q-1/n)
+            # if g^(n/2) != 1, then it is a primitive n-th root
+            g = pow(int(x), (self.m-1)//n, self.m)
+            if pow(g, n//2, self.m) != 1:
+                return self(g)
+            x += 1
 
-	def random(self):
-		return self(randint(0, self.m-1))
+    def random(self):
+        return self(randint(0, self.m-1))
 
-	def __call__(self, value) -> Field:
-		return Field(value, self.m)
+    def __call__(self, value) -> Field:
+        return Field(value, self.m)
+    
+def format_to_FQ(x_point: int, y_point: int):
+    return (FQ(x_point), FQ(y_point))
 
+def format_FQ_G1Point(data: Tuple[Field, Field]):
+    x, y = data
+    return (int(str(x)), int(str(y)))
 
-class TrustedSetup(NamedTuple):
-	F: GF
-	t: int
-	g1_powers: List[PointG1]
-	g2_powers: List[PointG2]
-	alpha_powers: List[Field]
-
-	@classmethod
-	def generate(cls, F: GF, t: int, g1andg2: bool):
-		"""
-		Simulate the trusted setup
-		Generate a random `alpha`
-		Then return `t` powers of `alpha` in G1, and the representation of `alpha` in G2
-		 g, g^a, ... g^{a^t}
-		"""
-		alpha = F.random()
-		#alpha = F(21888242871839275222246405745257275088548364400416034343698204186575808495617)
-		alpha_powers = [F(1)]
-		g1_powers = [curve.G1]
-		g2_powers = [curve.G2]
-		for i in range(t):
-			alpha_powers.append(alpha_powers[-1] * alpha)
-			if g1andg2:
-				g1_powers.append(curve.multiply(g1_powers[-1], int(alpha)))
-				g2_powers.append(curve.multiply(g2_powers[-1], int(alpha)))
-		print("g1_powers= ", g1_powers)
-		
-		return cls(F, t, g1_powers, g2_powers, alpha_powers)
-
-
-def polynomial(x: Field, coeffs: List[Field]):
-	result = coeffs[0]
-	for c_i in coeffs[1:]:
-		result += c_i * x
-		x = x*x
-	return result
-
-
-def CommitProduct(PK: TrustedSetup, coeff: List[Field]):
-	"""
-	XXX: unsure if we need this, but it looks useful
-	Computes commitment 'C' at `a`, where `a` is part of the trusted setup
-		C = reduce(operator.mul, [(a**j) * c_j for j, c_j in enumerate(coeff)])
-	For example:
-		sage: factor((a^0 * phi0) * ((a^1) * phi1) * ((a^2) * phi2) * ((a^3)*phi3) * ((a^4)*phi4))
-		a^10*(phi0*phi1*phi2*phi3*phi4)
-	Where the element 'k' is the n-th triangle number
-	"""
-	n = len(coeff)
-	k = (n*(n+1))//2  # equivalent to: reduce(operator.add, range(n))
-	element = PK.g1_powers[k]
-	product = PK.F(1)
-	for c_i in coeff:
-		product *= c_i
-	return curve.multiply(element, product)
-
-
-def CommitSumTrusted(PK: TrustedSetup, coeff: List[Field]):
-	return reduce(operator.add, [PK.alpha_powers[i] * c_i for i, c_i in enumerate(coeff)])
-
-
-def CommitSum(PK: TrustedSetup, coeff: List[Field]):
-	"""
-	Copute commitment to the evaluation of a polynomial with coefficients
-	At `x`, where `x` is part of the trusted setup
-	"""
-	coeffs = []
-	g1Powers = []
-	for g1 in PK.g1_powers:
-		print("G1Power", g1)
-	print("here2",reduce(curve.add, [curve.multiply(PK.g1_powers[i], int(c_i))
-							  for i, c_i in enumerate(coeff)]))
-	return reduce(curve.add, [curve.multiply(PK.g1_powers[i], int(c_i))
-							  for i, c_i in enumerate(coeff)])
-
-def mul_scalar(point, k: int):
-
-
-	if k < 0:
-	# k * point = -k * (-point)
-		return mul_scalar(-k, point_neg(point))
-
-	result = None
-	addend = point
-
-	while k:
-		if k & 1:
-		# Add.
-			result = add(result, addend)
-
-	# Double.
-		addend = add(addend, addend)
-
-		k >>= 1
-
-		assert is_on_curve(result, FQ(3))
-		#print(result)
-
-	return result
-
-def point_neg(point):
-    """Returns -point."""
-    assert is_on_curve(point)
-
-    if point is None:
-        # -0 = 0
-        return None
-
-    x, y = point
-    result = (x, -y % curve.p)
-
-    assert is_on_curve(result)
-
-    return result
-
-def point_add(point1, point2):
-    """Returns the result of point1 + point2 according to the group law."""
-    assert is_on_curve(point1, FQ(3))
-    assert is_on_curve(point2, FQ(3))
-
-    if point1 is None:
-        # 0 + point2 = point2
-        return point2
-    if point2 is None:
-        # point1 + 0 = point1
-        return point1
-
-    x1, y1 = point1
-    x2, y2 = point2
-
-    if x1 == x2 and y1 != y2:
-        # point1 + (-point1) = 0
-        return None
-
-    if x1 == x2:
-        # This is the case point1 == point2.
-        m = (3 * x1 * x1 + curve.a) * inverse_mod(2 * y1, curve.p)
+def format_field_to_int(value: Field | List[Field]):
+    if (type(value) == Field):
+        return int(value)
     else:
-        # This is the case point1 != point2.
-        m = (y1 - y2) * inverse_mod(x1 - x2, curve.p)
+        return [int(val) for val in value]
+    
 
-    x3 = m * m - x1 - x2
-    y3 = y1 + m * (x3 - x1)
-    result = (x3 % curve.p, -y3 % curve.p)
+def main():
+    kzg = KZG10()
+    for i in range(3):
+        print(G1_POINTS[i])
 
-    assert is_on_curve(result)
-
-    return result
-
-def inverse_mod(k, p):
-    """Returns the inverse of k modulo p.
-    This function returns the only integer x such that (x * k) % p == 1.
-    k must be non-zero and p must be a prime.
-    """
-    if k == 0:
-        raise ZeroDivisionError('division by zero')
-
-    if k < 0:
-        # k ** -1 = p - (-k) ** -1  (mod p)
-        return p - inverse_mod(-k, p)
-
-    # Extended Euclidean algorithm.
-    s, old_s = 0, 1
-    t, old_t = 1, 0
-    r, old_r = p, k
-
-    while r != 0:
-        quotient = old_r // r
-        old_r, r = r, old_r - quotient * r
-        old_s, s = s, old_s - quotient * s
-        old_t, t = t, old_t - quotient * t
-
-    gcd, x, y = old_r, old_s, old_t
-
-    assert gcd == 1
-    assert (k * x) % p == 1
-
-    return x % p
-
-
-# Functions that work on curve points #########################################
-
-def commit(coeffs):
-	result = (FQ(0), FQ(0))
-	#print("coeffs",coeffs)
-	for i,c in enumerate(coeffs):
-		
-		#print(i,c)
-		result = add(result, curve.multiply((FQ(int(SRS_G1_X[i],base=16)), FQ(int(SRS_G1_Y[i],base=16))), c))
-		#print(FQ(int(SRS_G1_X[i],base=16)), FQ(int(SRS_G1_Y[i],base=16)))
-	return result
-def CommitRemainder(PK: TrustedSetup, y: Field, coeff: List[Field]):
-	# TODO: implement
-	"""
-	f(x) = phi(x)
-sage: f
-x |--> c2*x^2 + c1*x + c0
-sage: f.maxima_methods().divide((x-a) * (x-b))[1]
--a*b*c2 + (a*c2 + b*c2 + c1)*x + c0
-sage: f.maxima_methods().divide((x-a))[1]
-a^2*c2 + a*c1 + c0
-sage: f.maxima_methods().divide((x-a) * (x-b) - (x-c))[1]
--a*b*c2 - c*c2 + (a*c2 + b*c2 + c1 + c2)*x + c0
-	"""
-	pass
-
-
-def CommitDivisionTrusted(PK: TrustedSetup, y: Field, coeff: List[Field]):
-	n = len(coeff)
-	y_powers = [PK.F(1)]
-	for i in range(n):
-		y_powers.append(y_powers[-1] * y)
-
-	result = PK.F(0)
-	for i in range(0, n-1):
-		for j in range(i, -1, -1):
-			a = PK.alpha_powers[j]
-			b = y_powers[i-j]
-			c = coeff[i+1]
-			result += a*b*c
-	return result
-	"""
-	return reduce(operator.add, [PK.alpha_powers[j] * (y_powers[i-j] * coeff[i+1])
-							     for j in range(i, -1, -1)
-							     for i in range(0, n-1)])
-	"""
-
-
-def CommitDivision(PK: TrustedSetup, y: Field, coeff: List[Field]):
-	"""
-	Compute commitment to the division: `(phi(x) - phi(y)) / (x - y)`
-	Using the trusted setup secret `x`
-	Example:
-		sage: poly4 = lambda k: c0 + ((k^1)*c1) + ((k^2)*c2) + ((k^3)*c3)
-		sage: factor((poly4(x) - poly4(y)) / (x - y))
-		c3*x^2 + c3*x*y + c3*y^2 + c2*x + c2*y + c1
-	TODO: number of multiplications can be reduced significantly
-	      number of additions can also be reduced significantly
-	"""
-	n = len(coeff)
-	y_powers = [PK.F(1)]
-	for i in range(n):
-		y_powers.append(y_powers[-1] * y)
-
-	result = None
-	for i in range(0, n-1):
-		for j in range(i, -1, -1):
-			a = PK.g1_powers[j]
-			b = y_powers[i-j]
-			c = coeff[i+1]
-			term = curve.multiply(a, int(b*c))
-			result = term if result is None else curve.add(result, term)
-	return result
-
-
-def Prove():
-	F = GF(curve.curve_order)
-	coeff = [F.random() for _ in range(2)]
-	#print(coeff)
-	PK = TrustedSetup.generate(F, len(coeff), True)
-
-	"""
-	The pairing equation works to verify that the witness and evaluation
-	match the committed polynomial.
-	sage:
-		var('x y c0 c1 c2 c3')
-		phi = lambda k: c0 + ((k^1)*c1) + ((k^2)*c2)
-		psi = lambda a, b: ((phi(a) - phi(b)) / (a - b))
-		psi(x, y) * (x-y) == phi(x) - phi(y)
-		(psi3(x, y) * (x-y)) + phi(y) == phi(x)
-	sage: psi(x, y) * (x-y)
-	c2*x^2 - c2*y^2 + c1*x - c1*y
-	sage: psi(x, y)
-	(c2*x^2 - c2*y^2 + c1*x - c1*y)/(x - y)
-	sage: factor(psi(x, y))
-	c2*x + c2*y + c1
-	sage: phi(x) - phi(y)
-	c2*x^2 - c2*y^2 + c1*x - c1*y
-	sage: factor(phi(x) - phi(y))
-	(c2*x + c2*y + c1)*(x - y)
-	"""
-
-	# Verify with trusted information
-	x = PK.alpha_powers[1]
-	phi_at_x = polynomial(x, coeff)
-	#print("phi_at_x",phi_at_x)
-	assert phi_at_x == CommitSumTrusted(PK, coeff)
-
-	i = F(3)
-	phi_at_i = polynomial(i, coeff)
-	#print("phi_at_i",phi_at_i)
-	a = polynomial(x, coeff) - phi_at_i
-	b = a / (x - i)
-
-	psi_i_at_x = CommitDivisionTrusted(PK, i, coeff)
-	#print("psi_i_at_x",psi_i_at_x)
-	assert psi_i_at_x == b
-	assert psi_i_at_x * (x-i) == phi_at_x - phi_at_i
-
-
-	# Then make commitment without access to trusted setup secrets
-	g1_phi_at_x = CommitSum(PK, coeff)  # Commit to polynomial
-	#print("g1_phi_at_x", g1_phi_at_x)
-	# Commit to an evaluation of the same polynomial at i
-	i = F.random()  # randomly sampled i
-	print("i", i)
-	phi_at_i = polynomial(i, coeff)	
-	print("phi_at_i", phi_at_i) #!CORRECT
-	g1_psi_i_at_x = CommitDivision(PK, i, coeff)
-	print("g1_psi_i_at_x", g1_psi_i_at_x)
-
-	# Compute `x - i` in G2
-	g2_i = curve.multiply(curve.G2, int(i))
-	#print("g2_i", g2_i)
-	g2_x_sub_i = curve.add(PK.g2_powers[1], curve.neg(g2_i)) # x-i
-	#print("g2_x_sub_i", g2_x_sub_i)
-
-	# Verifier
-	g1_phi_at_i = curve.multiply(curve.G1, int(phi_at_i))
-	print("g1_phi_at_i", g1_phi_at_i)
-	g1_phi_at_x_sub_i = curve.add(g1_phi_at_x, curve.neg(g1_phi_at_i))
-	print("g1_phi_at_x_sub_i", g1_phi_at_x_sub_i)
-	"""
-	devPapas
-	"""
-	coeffs = [int(c) for c in coeff]
-	print(coeffs)
-	contract = smartContract()
-	
-	#tx = contract.evalPolyAt(coeffs, int(i))
-	#print("contract", tx)
-	custom = commit(coeffs)
-	print("custom",custom)
-	tx = contract.commit(coeffs)
-	print("contract", tx)
-	
-	#tx = contract.pairing(	formatG1(g1_psi_i_at_x),
-	#						formatG2(curve.G2),
-	#						formatG1(curve.neg(g1_phi_at_x_sub_i)),
-	#	       				formatG2(g2_x_sub_i)
-	#						)
-	#print("contract", tx)
-	a = curve.pairing(g2_x_sub_i, g1_psi_i_at_x)
-	b = curve.pairing(curve.G2, curve.neg(g1_phi_at_x_sub_i))
-	ab = a*b
-	print(a)
-	print(b)
-	print('ab', ab, ab == curve.FQ12.one())
-
-
-def testRun():
-	contract = smartContract()
-	
-	F = GF(curve.curve_order)
-	number_of_coeffs = 3
-	coeff = []
-	for i in range(number_of_coeffs):
-		c = int(F(poly(i)))
-		print(c , type(c))
-		coeff.append(c)
-	#coeff = [int(poly(i)) for i in range(number_of_coeffs)]
-	print("coefficents =", coeff)
-	x_val=1
-	print("x_random =", x_val)
-	#x_val_formatted = int(x_val)
-	commit = generate_commitment_2(coeff)
-	print("commit = ", commit)
-	(proof, y_val) = genProof(coeff, x_val)
-	#proof = generate_proof(coeff, x_val_formatted, commit)
-	print("proof =", proof)
-	tx = contract.verify(formatG1_FQ(commit), formatG1_FQ(proof), x_val, y_val)
-	print("contract", tx)
 if __name__ == "__main__":
-	#Prove()
-	testRun()
-
-
-
-def derp(n):
-	"""
-	Example:
-	sage: poly5 = lambda k: c0 + ((k^1)*c1) + ((k^2)*c2) + ((k^3)*c3) + ((k^4)*c4) + ((k^5)*c5)
-	sage: poly6 = lambda k: c0 + ((k^1)*c1) + ((k^2)*c2) + ((k^3)*c3) + ((k^4)*c4) + ((k^5)*c5)
-	sage: poly5 = lambda k: c0 + ((k^1)*c1) + ((k^2)*c2) + ((k^3)*c3) + ((k^4)*c4)
-	sage: poly4 = lambda k: c0 + ((k^1)*c1) + ((k^2)*c2) + ((k^3)*c3)
-	sage: poly3 = lambda k: c0 + ((k^1)*c1) + ((k^2)*c2)
-	sage: poly2 = lambda k: c0 + ((k^1)*c1)
-	sage: poly2(x) - poly2(y)
-	c1*x - c1*y
-	sage: factor(poly2(x) - poly2(y))
-	c1*(x - y)
-	sage: factor((poly2(x) - poly2(y)) / (x - y))
-	c1
-	sage: factor((poly3(x) - poly3(y)) / (x - y))
-	c2*x + c2*y + c1
-	sage: factor((poly4(x) - poly4(y)) / (x - y))
-	c3*x^2 + c3*x*y + c3*y^2 + c2*x + c2*y + c1
-	sage: factor((poly5(x) - poly5(y)) / (x - y))
-	c4*x^3 + c4*x^2*y + c4*x*y^2 + c4*y^3 + c3*x^2 + c3*x*y + c3*y^2 + c2*x + c2*y + c1
-	sage: factor((poly6(x) - poly6(y)) / (x - y))
-	c5*x^4 + c5*x^3*y + c5*x^2*y^2 + c5*x*y^3 + c5*y^4 + c4*x^3 + c4*x^2*y + c4*x*y^2 + c4*y^3 + c3*x^2 + c3*x*y + c3*y^2 + c2*x + c2*y + c1
-	Emit this sequence:
-	>>> derp(4)
-	c[1] * x^0 * y^0
-	c[2] * x^1 * y^0
-	c[2] * x^0 * y^1
-	c[3] * x^2 * y^0
-	c[3] * x^1 * y^1
-	c[3] * x^0 * y^2
-	>>> derp(5)
-	c[1] * x^0 * y^0
-	c[2] * x^1 * y^0
-	c[2] * x^0 * y^1
-	c[3] * x^2 * y^0
-	c[3] * x^1 * y^1
-	c[3] * x^0 * y^2
-	c[4] * x^3 * y^0
-	c[4] * x^2 * y^1
-	c[4] * x^1 * y^2
-	c[4] * x^0 * y^3
-	"""
-	for i in range(0, n-1):
-		for j in range(i, -1, -1):
-			print(f'c[{i+1}] * x^{j} * y^{i-j}')
+    main()

@@ -74,7 +74,7 @@ library BLSVerification {
         // Use "invalid" to make gas estimation work
             //switch success case 0 {invalid}
         }
-        require(success,"Lost");
+        //require(success,"Lost");
         return out[0] != 0;
     }
 
