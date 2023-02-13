@@ -5,6 +5,14 @@ from py_ecc.fields import bn128_FQ as FQ
 from py_ecc import bn128 as curve
 from py_ecc.typing import Field
 from random import randint
+import galois
+
+from sympy import symbols, Dummy
+from sympy.polys.domains import ZZ
+from sympy.polys.galoistools import (gf_irreducible_p, gf_add, \
+                                     gf_sub, gf_mul, gf_rem, gf_gcdex)
+from sympy.ntheory.primetest import isprime
+import itertools
 
 G1_POINTS = []
 
@@ -29,6 +37,13 @@ class KZG10(object):
     
     def generate_coeffs(self, amount: int):
         return [self.F.random() for _ in range(amount-1)]
+    
+    def generate_coeffs_2(self, values: List[int]):
+        #pol = lagrange_interpolation(values, self.F)
+        values = [self.F(val) for val in values]
+        pol = lagrange_inter(values, self.F)
+        return(pol)
+        #return [self.F.random() for _ in range(amount-1)]
     
     def generate_proof(self, coefficients: List[Field], index: Field):
         n = len(coefficients)
@@ -58,6 +73,19 @@ class KZG10(object):
     def generate_commitment(self, coefficients: List[Field]):
         return reduce(curve.add, [curve.multiply(G1_POINTS[i], int(c_i))
 							        for i, c_i in enumerate(coefficients)])
+    
+    def interp_poly(self, values):
+        x_vals = []
+        y_vals = []
+        for x, y in enumerate(values):
+            x_vals.append(x)
+            y_vals.append(int(y))
+        F = galois.GF(int(curve.curve_order))
+        x_vals = F(x_vals)
+        y_vals = F(y_vals)
+        f = galois.lagrange_poly(x_vals, y_vals)
+        return [self.F(c) for c in f.coeffs]
+
 
 class Field(object):
     def __init__(self, value, modulus: int):
@@ -109,6 +137,74 @@ class Field(object):
 
     def inverse(self):
         return Field(pow(self.v, self.m-2, self.m), self.m)
+
+"""def interp_poly(X, Y, modulus):
+    F = GF(modulus)
+    poly = [[]]
+    for j, y in enumerate(Y):
+        Xe = X[:j] + X[j+1:]
+        numer = reduce(lambda p, q: F(p)*F(q), ([[1], -x] for x in Xe))
+        denom = reduce(lambda x, y: x*y, (X[j] - x for x in Xe))
+        poly = poly + numer * y / denom
+    return poly"""
+def lagrange_interpolation(points, field):
+    x_vals = []
+    y_vals = []
+    for x, y in enumerate(points):
+        x_vals.append(field(x))
+        y_vals.append(field(y))
+    n = len(x_vals)
+    coefficients = [field(0) for i in range(n)]
+    for i in range(n):
+        numerator = field(1)
+        denominator = field(1)
+        x_i = x_vals[i]
+        y_i = y_vals[i]
+        for j in range(n):
+            if i == j:
+                continue
+            numerator *= y_vals[j]
+            denominator *= y_vals[j] - y_i
+        coefficients[i] = x_i * numerator / denominator
+    return coefficients
+
+def lagrange_interpolation(points, field):
+    x_vals = []
+    y_vals = []
+    for x, y in enumerate(points):
+        x_vals.append(field(x))
+        y_vals.append(field(y))
+    n = len(x_vals)
+    coefficients = [field(0) for i in range(n)]
+    for i in range(n):
+        numerator = field(1)
+        denominator = field(1)
+        x_i = x_vals[i]
+        y_i = y_vals[i]
+        for j in range(n):
+            if i == j:
+                continue
+            numerator *= y_vals[j]
+            denominator *= y_vals[j] - y_i
+        coefficients[i] = x_i * numerator / denominator
+    return coefficients
+
+def lagrange_inter(vals, F):
+    values = []
+    x_values = []
+    for k, y in enumerate(vals):
+        values.append(k)
+        x_values.append(int(y))
+    f = galois.GF(curve.curve_order)
+    x_val = f(values)
+    y_val = f(x_values)
+    coeffs = galois.lagrange_poly(x_val, y_val).coeffs
+    print(coeffs)
+    return [F(int(c)) for c in coeffs]
+
+
+
+
     
 class GF(object):
     def __init__(self, modulus: int):
@@ -135,6 +231,8 @@ class GF(object):
 
     def __call__(self, value) -> Field:
         return Field(value, self.m)
+
+
     
 def format_to_FQ(x_point: int, y_point: int):
     return (FQ(x_point), FQ(y_point))
@@ -149,11 +247,12 @@ def format_field_to_int(value: Field | List[Field]):
     else:
         return [int(val) for val in value]
     
+    
 
 def main():
     kzg = KZG10()
-    for i in range(3):
-        print(G1_POINTS[i])
+    coeffs = kzg.generate_coeffs_2([5, 25, 30, 80])
+    print(coeffs)
 
 if __name__ == "__main__":
     main()
