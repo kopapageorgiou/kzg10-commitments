@@ -1,25 +1,20 @@
-from typing import List, NamedTuple, Tuple, Union
+from typing import List, Tuple
 import json
 from functools import reduce
 from py_ecc.fields import bn128_FQ as FQ
 from py_ecc import bn128 as curve
 from py_ecc.typing import Field
 from random import randint
-import galois
-from decimal import Decimal
-
-from sympy import symbols, Dummy
-from sympy.polys.domains import ZZ
-from sympy.polys.galoistools import (gf_irreducible_p, gf_add, \
-                                     gf_sub, gf_mul, gf_rem, gf_gcdex)
-from sympy.ntheory.primetest import isprime
-import numpy as np
 
 G1_POINTS = []
 
 class KZG10(object):
 
     def __init__(self) -> None:
+        """
+        Load G1 Points from tau json file
+        and create GF with field= bn128.curve_order a.k.a BABYJUB_P (the same field with the one in solidity)
+        """
         with open('taug1_65536.json', 'r') as file:
             g1_points = json.load(file)
         file.close()
@@ -30,11 +25,6 @@ class KZG10(object):
         self.F = GF(curve.curve_order)
         
     def evalPolyAt(self, coefficients: List[Field], index: Field):
-        """result = coefficients[0]
-        for c_i in coefficients[1:]:
-            result += c_i * index
-            index = index*index
-        return result"""
         result = self.F(0)
         power_of_x = self.F(1)
 
@@ -44,51 +34,27 @@ class KZG10(object):
 
         return result
     
-    def generate_coeffs(self, amount: int):
+    def generate_coeffs_random(self, amount: int):
         return [self.F.random() for _ in range(amount-1)]
     
-    def generate_coeffs_2(self, values: List[int]):
+    def generate_coeffs_for(self, values: List[int]):
         x_values = []
         val = []
         for x, y in enumerate(values):
             x_values.append(y)
             val.append(x)
-        print(x_values, val)
-        #pol = lagrange_interpolation(values, self.F)
-        #values = [self.F(val) for val in values]
-        pol = lagrange_interpolation([self.F(x) for x in x_values], [self.F(y) for y in val], self.F)
-        print(pol)
+
+        pol = self._lagrange_interpolation([self.F(x) for x in x_values], [self.F(y) for y in val])
         return(pol)
-        #return [self.F.random() for _ in range(amount-1)]
     
     def generate_proof(self, coefficients: List[Field], index: Field):
-        """n = len(coefficients)
-        F = GF(curve.curve_order)
-        y_powers = [F(1)]
-        
-        for i in range(n):
-            y_powers.append(y_powers[-1] * index)
-
-        result = None
-        for i in range(0, n-1):
-            for j in range(i, -1, -1):
-                a = G1_POINTS[i]
-                b = y_powers[i-j]
-                c = coefficients[i+1]
-                term = curve.multiply(a, int(b*c))
-                result = term if result is None else curve.add(result, term)
-        return result"""
         quotientCoefficients = self._genQuotientPolynomial(coefficients, index)
         return self.generate_commitment(quotientCoefficients)
 
     def _genQuotientPolynomial(self, coefficients: List[Field], xVal = Field):
-        np.set_printoptions(suppress=True, precision=77)
-        poly = [c for c in coefficients]
         yVal = self.evalPolyAt(coefficients, xVal)
-        y = [yVal]
         x = [self.F(0), self.F(1)]
-        z = [xVal]
-        res = self._divPoly(self._subPoly(poly, y), self._subPoly(x, z))[0]
+        res = self._divPoly(self._subPoly(coefficients, [yVal]), self._subPoly(x, [xVal]))[0]
         return res
     
     def get_index_x(self, index: int):
@@ -101,18 +67,6 @@ class KZG10(object):
     def generate_commitment(self, coefficients: List[Field]):
         return reduce(curve.add, [curve.multiply(G1_POINTS[i], int(c_i))
 							        for i, c_i in enumerate(coefficients)])
-    
-    def interp_poly(self, values):
-        x_vals = []
-        y_vals = []
-        for x, y in enumerate(values):
-            x_vals.append(x)
-            y_vals.append(int(y))
-        F = galois.GF(int(curve.curve_order))
-        x_vals = F(x_vals)
-        y_vals = F(y_vals)
-        f = galois.lagrange_poly(x_vals, y_vals)
-        return [self.F(c) for c in f.coeffs]
 
     def _subPoly(self, p1: List[Field], p2: List[Field]):
         degree = max(len(p1), len(p2))
@@ -137,6 +91,22 @@ class KZG10(object):
                 remainder[i + j] -= quotient[i] * denominator[j]
             del remainder[-1]
         return quotient, remainder
+
+    def _lagrange_interpolation(self, x_vals, y_vals):
+        n = len(x_vals)
+        coefficients = [self.F(0) for i in range(n)]
+        for i in range(n):
+            numerator = self.F(1)
+            denominator = self.F(1)
+            x_i = x_vals[i]
+            y_i = y_vals[i]
+            for j in range(n):
+                if i == j:
+                    continue
+                numerator *= x_vals[j] - x_i
+                denominator *= x_vals[j] - y_i
+            coefficients[i] = y_i * numerator / denominator
+        return coefficients 
 
 
 class Field(object):
@@ -189,70 +159,7 @@ class Field(object):
 
     def inverse(self):
         return Field(pow(self.v, self.m-2, self.m), self.m)
-
-"""def interp_poly(X, Y, modulus):
-    F = GF(modulus)
-    poly = [[]]
-    for j, y in enumerate(Y):
-        Xe = X[:j] + X[j+1:]
-        numer = reduce(lambda p, q: F(p)*F(q), ([[1], -x] for x in Xe))
-        denom = reduce(lambda x, y: x*y, (X[j] - x for x in Xe))
-        poly = poly + numer * y / denom
-    return poly"""
-"""def lagrange_interpolation(points, field):
-    x_vals = []
-    y_vals = []
-    for x, y in enumerate(points):
-        x_vals.append(field(x))
-        y_vals.append(field(y))
-    n = len(x_vals)
-    coefficients = [field(0) for i in range(n)]
-    for i in range(n):
-        numerator = field(1)
-        denominator = field(1)
-        x_i = x_vals[i]
-        y_i = y_vals[i]
-        for j in range(n):
-            if i == j:
-                continue
-            numerator *= y_vals[j]
-            denominator *= x_i - x_vals[j]
-        coefficients[i] = y_i * numerator / denominator
-    return coefficients"""
-def lagrange_interpolation(x_vals, y_vals, field):
-    n = len(x_vals)
-    coefficients = [field(0) for i in range(n)]
-    for i in range(n):
-        numerator = field(1)
-        denominator = field(1)
-        x_i = x_vals[i]
-        y_i = y_vals[i]
-        for j in range(n):
-            if i == j:
-                continue
-            numerator *= x_vals[j] - x_i
-            denominator *= x_vals[j] - y_i
-        coefficients[i] = y_i * numerator / denominator
-    return coefficients
-
-
-def lagrange_inter(vals, F):
-    values = []
-    x_values = []
-    for k, y in enumerate(vals):
-        values.append(k)
-        x_values.append(int(y))
-    f = galois.GF(curve.curve_order)
-    x_val = f(values)
-    y_val = f(x_values)
-    coeffs = galois.lagrange_poly(x_val, y_val).coeffs
-    print(coeffs)
-    return [F(int(c)) for c in coeffs]
-
-
-
-
-    
+   
 class GF(object):
     def __init__(self, modulus: int):
         self.m = modulus
