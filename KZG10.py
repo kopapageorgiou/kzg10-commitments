@@ -62,7 +62,7 @@ class KZG10(object):
         #return [self.F.random() for _ in range(amount-1)]
     
     def generate_proof(self, coefficients: List[Field], index: Field):
-        n = len(coefficients)
+        """n = len(coefficients)
         F = GF(curve.curve_order)
         y_powers = [F(1)]
         
@@ -77,7 +77,19 @@ class KZG10(object):
                 c = coefficients[i+1]
                 term = curve.multiply(a, int(b*c))
                 result = term if result is None else curve.add(result, term)
-        return result
+        return result"""
+        quotientCoefficients = self._genQuotientPolynomial(coefficients, index)
+        return self.generate_commitment(quotientCoefficients)
+
+    def _genQuotientPolynomial(self, coefficients: List[Field], xVal = Field):
+        np.set_printoptions(suppress=True, precision=77)
+        poly = [c for c in coefficients]
+        yVal = self.evalPolyAt(coefficients, xVal)
+        y = [yVal]
+        x = [self.F(0), self.F(1)]
+        z = [xVal]
+        res = self._divPoly(self._subPoly(poly, y), self._subPoly(x, z))[0]
+        return res
     
     def get_index_x(self, index: int):
         return self.F(index)
@@ -101,6 +113,30 @@ class KZG10(object):
         y_vals = F(y_vals)
         f = galois.lagrange_poly(x_vals, y_vals)
         return [self.F(c) for c in f.coeffs]
+
+    def _subPoly(self, p1: List[Field], p2: List[Field]):
+        degree = max(len(p1), len(p2))
+        result = [self.F(0)] * degree
+        for i in range(degree):
+            if i < len(p1):
+                result[i] += p1[i]
+            if i < len(p2):
+                result[i] -= p2[i]
+        return result
+
+    def _divPoly(self, numerator, denominator):
+        degree_numerator = len(numerator) - 1
+        degree_denominator = len(denominator) - 1
+        if degree_numerator < degree_denominator:
+            return [self.F(0)], numerator
+        quotient = [self.F(0)] * (degree_numerator - degree_denominator + 1)
+        remainder = numerator.copy()
+        for i in range(degree_numerator - degree_denominator, -1, -1):
+            quotient[i] = remainder[-1] / denominator[-1]
+            for j in range(degree_denominator, -1, -1):
+                remainder[i + j] -= quotient[i] * denominator[j]
+            del remainder[-1]
+        return quotient, remainder
 
 
 class Field(object):

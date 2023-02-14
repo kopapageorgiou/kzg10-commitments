@@ -493,10 +493,10 @@ def Prove():
 def testRun():
 	contract = smartContract()
 	kzg = KZG10()
-	#coeffs, indexes = kzg.generate_coeffs(4)
-	coeffs = kzg.generate_coeffs(10)
+	coeffs = kzg.generate_coeffs_2([5, 25, 125, 150])
+	#coeffs = kzg.generate_coeffs(10)
 	print("coefficients = \n", coeffs)
-	index_x = kzg.get_index_x(9)  					#! Choosing index_x
+	index_x = kzg.get_index_x(4)  					#! Choosing index_x
 	print("\nIndex x:\n", index_x)
 	#print("index-x =", index_x)
 	value_y = kzg.evalPolyAt(coeffs, index_x)		#! Evaluating polynomial at index_x to get y_value
