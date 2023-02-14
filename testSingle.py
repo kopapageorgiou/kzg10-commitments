@@ -493,9 +493,10 @@ def Prove():
 def testRun():
 	contract = smartContract()
 	kzg = KZG10()
-	coeffs = kzg.generate_coeffs_2([5, 25, 125, 150])
+	#coeffs, indexes = kzg.generate_coeffs(4)
+	coeffs = kzg.generate_coeffs(10)
 	print("coefficients = \n", coeffs)
-	index_x = kzg.get_index_x(0)  					#! Choosing index_x
+	index_x = kzg.get_index_x(9)  					#! Choosing index_x
 	print("\nIndex x:\n", index_x)
 	#print("index-x =", index_x)
 	value_y = kzg.evalPolyAt(coeffs, index_x)		#! Evaluating polynomial at index_x to get y_value
@@ -504,7 +505,7 @@ def testRun():
 	print(tx)
 	print("\nIs the y value equal with the value from the chain?", format_field_to_int(value_y) == tx)
 	commit = kzg.generate_commitment(coeffs)		#! Generating commitment
-	print("\nCommitment: \n", commit)
+	#print("\nCommitment: \n", commit)
 	tx = contract.commit(format_field_to_int(coeffs))
 	print("\nIs the commitment equal with the commitment from the chain?", tx == format_FQ_G1Point(commit))
 	proof = kzg.generate_proof(coeffs, index_x)		#! Generating proof

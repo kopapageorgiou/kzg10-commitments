@@ -6,13 +6,14 @@ from py_ecc import bn128 as curve
 from py_ecc.typing import Field
 from random import randint
 import galois
+from decimal import Decimal
 
 from sympy import symbols, Dummy
 from sympy.polys.domains import ZZ
 from sympy.polys.galoistools import (gf_irreducible_p, gf_add, \
                                      gf_sub, gf_mul, gf_rem, gf_gcdex)
 from sympy.ntheory.primetest import isprime
-import itertools
+import numpy as np
 
 G1_POINTS = []
 
@@ -29,19 +30,34 @@ class KZG10(object):
         self.F = GF(curve.curve_order)
         
     def evalPolyAt(self, coefficients: List[Field], index: Field):
-        result = coefficients[0]
+        """result = coefficients[0]
         for c_i in coefficients[1:]:
             result += c_i * index
             index = index*index
+        return result"""
+        result = self.F(0)
+        power_of_x = self.F(1)
+
+        for coeff in coefficients:
+            result = (result + (power_of_x * coeff))
+            power_of_x = (power_of_x * index)
+
         return result
     
     def generate_coeffs(self, amount: int):
         return [self.F.random() for _ in range(amount-1)]
     
     def generate_coeffs_2(self, values: List[int]):
+        x_values = []
+        val = []
+        for x, y in enumerate(values):
+            x_values.append(y)
+            val.append(x)
+        print(x_values, val)
         #pol = lagrange_interpolation(values, self.F)
-        values = [self.F(val) for val in values]
-        pol = lagrange_inter(values, self.F)
+        #values = [self.F(val) for val in values]
+        pol = lagrange_interpolation([self.F(x) for x in x_values], [self.F(y) for y in val], self.F)
+        print(pol)
         return(pol)
         #return [self.F.random() for _ in range(amount-1)]
     
@@ -147,7 +163,7 @@ class Field(object):
         denom = reduce(lambda x, y: x*y, (X[j] - x for x in Xe))
         poly = poly + numer * y / denom
     return poly"""
-def lagrange_interpolation(points, field):
+"""def lagrange_interpolation(points, field):
     x_vals = []
     y_vals = []
     for x, y in enumerate(points):
@@ -164,30 +180,25 @@ def lagrange_interpolation(points, field):
             if i == j:
                 continue
             numerator *= y_vals[j]
-            denominator *= y_vals[j] - y_i
-        coefficients[i] = x_i * numerator / denominator
+            denominator *= x_i - x_vals[j]
+        coefficients[i] = y_i * numerator / denominator
+    return coefficients"""
+def lagrange_interpolation(x_vals, y_vals, field):
+    n = len(x_vals)
+    coefficients = [field(0) for i in range(n)]
+    for i in range(n):
+        numerator = field(1)
+        denominator = field(1)
+        x_i = x_vals[i]
+        y_i = y_vals[i]
+        for j in range(n):
+            if i == j:
+                continue
+            numerator *= x_vals[j] - x_i
+            denominator *= x_vals[j] - y_i
+        coefficients[i] = y_i * numerator / denominator
     return coefficients
 
-def lagrange_interpolation(points, field):
-    x_vals = []
-    y_vals = []
-    for x, y in enumerate(points):
-        x_vals.append(field(x))
-        y_vals.append(field(y))
-    n = len(x_vals)
-    coefficients = [field(0) for i in range(n)]
-    for i in range(n):
-        numerator = field(1)
-        denominator = field(1)
-        x_i = x_vals[i]
-        y_i = y_vals[i]
-        for j in range(n):
-            if i == j:
-                continue
-            numerator *= y_vals[j]
-            denominator *= y_vals[j] - y_i
-        coefficients[i] = x_i * numerator / denominator
-    return coefficients
 
 def lagrange_inter(vals, F):
     values = []
