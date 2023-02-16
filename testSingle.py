@@ -496,13 +496,13 @@ def testRun():
 	coeffs = kzg.generate_coeffs_for([5, 25, 125, 150])
 	#coeffs = kzg.generate_coeffs(10)
 	print("coefficients = \n", coeffs)
-	index_x = kzg.get_index_x(15)  					#! Choosing index_x
+	index_x = kzg.get_index_x(1)  					#! Choosing index_x
 	print("\nIndex x:\n", index_x)
 	#print("index-x =", index_x)
 	value_y = kzg.evalPolyAt(coeffs, index_x)		#! Evaluating polynomial at index_x to get y_value
 	print("\ny value:\n", value_y)
-	tx = contract.evalPolyAt(format_field_to_int(coeffs), format_field_to_int(index_x))
-	#print(tx)
+	tx = contract.evalPolyAt2(format_field_to_int(coeffs), format_field_to_int(index_x))
+	print(tx)
 	print("\nIs the y value equal with the value from the chain?", format_field_to_int(value_y) == tx)
 	commit = kzg.generate_commitment(coeffs)		#! Generating commitment
 	#print("\nCommitment: \n", commit)
@@ -515,6 +515,7 @@ def testRun():
 						format_field_to_int(index_x),
 						format_field_to_int(value_y))
 	print("\nResult of on-chain verification:", tx)
+	print(kzg.verify(commit, proof, index_x, value_y))
 if __name__ == "__main__":
 	#Prove()
 	testRun()

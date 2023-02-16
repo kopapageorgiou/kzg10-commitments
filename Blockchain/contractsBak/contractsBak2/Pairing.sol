@@ -1,4 +1,4 @@
-pragma solidity ^0.8.0;
+pragma solidity ^0.5.0;
 
 library Pairing {
 
@@ -27,28 +27,14 @@ library Pairing {
             return G1Point(p.X, PRIME_Q - (p.Y % PRIME_Q));
         }
     }
-    /// @return r the sum of two points of G1
-    function add(G1Point memory p1, G1Point memory p2) internal returns (G1Point memory r) {
-        uint[4] memory input;
-        input[0] = p1.X;
-        input[1] = p1.Y;
-        input[2] = p2.X;
-        input[3] = p2.Y;
-        bool success;
-        assembly {
-            success := call(sub(gas(), 2000), 6, 0, input, 0xc0, r, 0x60)
-        // Use "invalid" to make gas estimation work
-            //switch success case 0 {invalid}
-        }
-        require(success);
-    }
+
     /*
      * @return The sum of two points of G1
      */
     function plus(
         G1Point memory p1,
         G1Point memory p2
-    ) internal returns (G1Point memory r) {
+    ) internal view returns (G1Point memory r) {
 
         uint256[4] memory input;
         input[0] = p1.X;
@@ -59,9 +45,9 @@ library Pairing {
 
         // solium-disable-next-line security/no-inline-assembly
         assembly {
-            success := call(sub(gas(), 2000), 6, 0, input, 0xc0, r, 0x60)
+            success := staticcall(sub(gas, 2000), 6, input, 0xc0, r, 0x60)
             // Use "invalid" to make gas estimation work
-            //switch success case 0 { invalid() }
+            switch success case 0 { invalid() }
         }
 
         require(success, "pairing-add-failed");
@@ -72,7 +58,7 @@ library Pairing {
      *         p == p.scalar_mul(1) and p.plus(p) == p.scalar_mul(2) for all
      *         points p.
      */
-    function mulScalar(G1Point memory p, uint256 s) internal returns (G1Point memory r) {
+    function mulScalar(G1Point memory p, uint256 s) internal view returns (G1Point memory r) {
 
         uint256[3] memory input;
         input[0] = p.X;
@@ -81,9 +67,9 @@ library Pairing {
         bool success;
         // solium-disable-next-line security/no-inline-assembly
         assembly {
-            success := call(sub(gas(), 2000), 7, 0, input, 0x80, r, 0x60)
+            success := staticcall(sub(gas, 2000), 7, input, 0x80, r, 0x60)
             // Use "invalid" to make gas estimation work
-            //switch success case 0 { invalid() }
+            switch success case 0 { invalid() }
         }
         require (success, "pairing-mul-failed");
     }
@@ -98,7 +84,7 @@ library Pairing {
         G2Point memory a2,
         G1Point memory b1,
         G2Point memory b2
-    ) internal returns (bool) {
+    ) internal view returns (bool) {
 
         G1Point[2] memory p1 = [a1, b1];
         G2Point[2] memory p2 = [a2, b2];
@@ -121,9 +107,9 @@ library Pairing {
 
         // solium-disable-next-line security/no-inline-assembly
         assembly {
-            success := call(sub(gas(), 2000), 8, 0, add(input, 0x20), mul(inputSize, 0x20), out, 0x20)
+            success := staticcall(sub(gas, 2000), 8, add(input, 0x20), mul(inputSize, 0x20), out, 0x20)
             // Use "invalid" to make gas estimation work
-            //switch success case 0 { invalid() }
+            switch success case 0 { invalid() }
         }
 
         require(success, "pairing-opcode-failed");

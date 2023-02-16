@@ -38,6 +38,9 @@ class smartContract(object):
     def evalPolyAt(self, coefficients, index):
         return self.contract.functions.evalPolyAt(coefficients, index).call()
     
+    def evalPolyAt2(self, coefficients, index):
+        return self.contract.functions.evalPolyAt2(coefficients, index).call()
+    
     def pairing(self, a1, a2, b1, b2):
         return self.contract.functions.pairingTest(a1,a2,b1,b2).call()
     

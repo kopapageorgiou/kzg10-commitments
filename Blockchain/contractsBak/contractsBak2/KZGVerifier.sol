@@ -1,42 +1,31 @@
 // Modified from https://github.com/appliedzkp/semaphore/blob/master/contracts/sol/verifier.sol
 pragma experimental ABIEncoderV2;
-pragma solidity ^0.8.0;
+pragma solidity ^0..0;
 
-//import "./Pairing.sol";
-import "./BLSVerification.sol";
+import "./Pairing.sol";
 import { Constants } from "./Constants.sol";
 
 contract Verifier is Constants {
-    uint256 private constant FIELD_MODULUS = 0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47;
-    //using Pairing for *;
-    //using BLSVerification for *;
+
+    using Pairing for *;
 
     // The G1 generator
-    BLSVerification.G1Point SRS_G1_0 = BLSVerification.G1Point({
+    Pairing.G1Point SRS_G1_0 = Pairing.G1Point({
         X: Constants.SRS_G1_X[0],
         Y: Constants.SRS_G1_Y[0]
     });
 
     // The G2 generator
-    BLSVerification.G2Point g2Generator = BLSVerification.G2Point({
+    Pairing.G2Point g2Generator = Pairing.G2Point({
         X: [ Constants.SRS_G2_X_0[0], Constants.SRS_G2_X_1[0] ],
         Y: [ Constants.SRS_G2_Y_0[0], Constants.SRS_G2_Y_1[0] ]
 
     });
 
-    BLSVerification.G2Point SRS_G2_1 = BLSVerification.G2Point({
+    Pairing.G2Point SRS_G2_1 = Pairing.G2Point({
         X: [ Constants.SRS_G2_X_0[1], Constants.SRS_G2_X_1[1] ],
         Y: [ Constants.SRS_G2_Y_0[1], Constants.SRS_G2_Y_1[1] ]
     });
-
-    function pairingTest(
-        BLSVerification.G1Point memory a1,
-        BLSVerification.G2Point memory a2,
-        BLSVerification.G1Point memory b1,
-        BLSVerification.G2Point memory b2
-    ) public returns (bool) {
-        return BLSVerification.pairing2(a1, a2, b1, b2);
-    }
 
     /*
      * Verifies a single-point evaluation of a polynominal using the KZG
@@ -54,11 +43,11 @@ contract Verifier is Constants {
      * @param _value The result of the polynominal evaluation.
      */
     function verify(
-        BLSVerification.G1Point memory _commitment,
-        BLSVerification.G1Point memory _proof,
+        Pairing.G1Point memory _commitment,
+        Pairing.G1Point memory _proof,
         uint256 _index,
         uint256 _value
-    ) public returns (bool) {
+    ) public view returns (bool) {
         // Make sure each parameter is less than the prime q
         require(_commitment.X < BABYJUB_P, "Verifier.verifyKZG: _commitment.X is out of range");
         require(_commitment.Y < BABYJUB_P, "Verifier.verifyKZG: _commitment.Y is out of range");
@@ -86,23 +75,23 @@ contract Verifier is Constants {
 
 
         // Compute commitment - aCommitment
-        BLSVerification.G1Point memory commitmentMinusA = BLSVerification.add(
+        Pairing.G1Point memory commitmentMinusA = Pairing.plus(
             _commitment,
-            BLSVerification.negate(
-                BLSVerification.mul(SRS_G1_0, _value)
+            Pairing.negate(
+                Pairing.mulScalar(SRS_G1_0, _value)
             )
         );
 
         // Negate the proof
-        BLSVerification.G1Point memory negProof = BLSVerification.negate(_proof);
+        Pairing.G1Point memory negProof = Pairing.negate(_proof);
 
         // Compute index * proof
-        BLSVerification.G1Point memory indexMulProof = BLSVerification.mul(_proof, _index);
+        Pairing.G1Point memory indexMulProof = Pairing.mulScalar(_proof, _index);
 
         // Returns true if and only if
         // e((index * proof) + (commitment - aCommitment), G2.g) * e(-proof, xCommit) == 1
-        return BLSVerification.pairing2(
-            BLSVerification.add(indexMulProof, commitmentMinusA),
+        return Pairing.pairing(
+            Pairing.plus(indexMulProof, commitmentMinusA),
             g2Generator,
             negProof,
             SRS_G2_1
@@ -116,15 +105,15 @@ contract Verifier is Constants {
      */
     function commit(
         uint256[] memory coefficients
-    ) public returns (BLSVerification.G1Point memory) {
+    ) public view returns (Pairing.G1Point memory) {
 
-        BLSVerification.G1Point memory result = BLSVerification.G1Point(0, 0);
+        Pairing.G1Point memory result = Pairing.G1Point(0, 0);
 
         for (uint256 i = 0; i < coefficients.length; i ++) {
-            result = BLSVerification.add(
+            result = Pairing.plus(
                 result,
-                BLSVerification.mul(
-                    BLSVerification.G1Point({
+                Pairing.mulScalar(
+                    Pairing.G1Point({
                         X: Constants.SRS_G1_X[i],
                         Y: Constants.SRS_G1_Y[i]
                     }),
@@ -133,42 +122,6 @@ contract Verifier is Constants {
             );
         }
         return result;
-    }
-    function testAdd(
-        uint256[] memory coefficients
-    ) public returns (BLSVerification.G1Point memory) {
-
-        BLSVerification.G1Point memory result = BLSVerification.G1Point(0, 0);
-
-        for (uint256 i = 0; i < coefficients.length; i ++) {
-            result = BLSVerification.add(
-                result,
-                    BLSVerification.G1Point({
-                        X: Constants.SRS_G1_X[i],
-                        Y: Constants.SRS_G1_Y[i]
-                    })
-            );
-        }
-        return result;
-    }
-    function testMul(uint256[] memory coeffs) public returns(BLSVerification.G1Point memory){
-        BLSVerification.G1Point memory result = BLSVerification.G1Point(0, 0);
-        for (uint256 i = 0; i < coeffs.length; i ++) {
-            BLSVerification.G1Point memory temp = BLSVerification.G1Point(SRS_G1_X[i], SRS_G1_Y[i]);
-            BLSVerification.G1Point memory mulTemp = BLSVerification.mul(temp, coeffs[i]);
-            result = BLSVerification.add(result, mulTemp);
-        }
-        return result;
-    }
-    function _FQ2Add(
-        BLSVerification.G1Point memory p1,
-        BLSVerification.G1Point memory p2
-    ) internal pure returns(BLSVerification.G1Point memory) {
-        return (BLSVerification.G1Point({
-            X: addmod(p1.X, p2.X, FIELD_MODULUS),
-            Y: addmod(p1.Y, p2.Y, FIELD_MODULUS)
-        })
-        );
     }
 
     /*
@@ -193,6 +146,18 @@ contract Verifier is Constants {
         }
         return result;
     }
+
+    function evalPolyAt2(uint256[] memory coeffs, uint256 x) public pure returns (uint256) {
+        uint256 result = 0;
+        uint256 n = coeffs.length;
+        uint256 fieldSize = Constants.BABYJUB_P;
+        for (uint256 i = 0; i < n; i++) {
+            uint256 term = mulmod(coeffs[i], expmod(x, n-i-1, fieldSize), fieldSize);
+            result = addmod(result, term, fieldSize);
+        }
+        
+        return result;
+    }
     
     /*
      * Verifies the evaluation of multiple points of a polynominal using the
@@ -214,13 +179,13 @@ contract Verifier is Constants {
      *                 for each index.
      */
     function verifyMulti(
-        BLSVerification.G1Point memory _commitment,
-        BLSVerification.G2Point memory _proof,
+        Pairing.G1Point memory _commitment,
+        Pairing.G2Point memory _proof,
         uint256[] memory _indices,
         uint256[] memory _values,
         uint256[] memory _iCoeffs,
         uint256[] memory _zCoeffs
-    ) public returns (bool) {
+    ) public view returns (bool) {
         // Perform range checks
         require(_commitment.X < BABYJUB_P, "Verifier.verifyMultiKZG: _commitment.X is out of range");
         require(_commitment.Y < BABYJUB_P, "Verifier.verifyMultiKZG: _commitment.Y is out of range");
@@ -252,19 +217,19 @@ contract Verifier is Constants {
         }
 
         // Generate the KZG commitments to the i and z polynominals
-        BLSVerification.G1Point memory zCommit = commit(_zCoeffs);
-        BLSVerification.G1Point memory iCommit = commit(_iCoeffs);
+        Pairing.G1Point memory zCommit = commit(_zCoeffs);
+        Pairing.G1Point memory iCommit = commit(_iCoeffs);
 
         // Compute commitment - commit(iPoly)
-        BLSVerification.G1Point memory commitmentMinusICommit =
-            BLSVerification.add(
+        Pairing.G1Point memory commitmentMinusICommit =
+            Pairing.plus(
                 _commitment,
-                BLSVerification.negate(iCommit)
+                Pairing.negate(iCommit)
             );
 
         // Perform the pairing check
-        return BLSVerification.pairing2(
-            BLSVerification.negate(zCommit),
+        return Pairing.pairing(
+            Pairing.negate(zCommit),
             _proof,
             commitmentMinusICommit,
             g2Generator
@@ -290,6 +255,4 @@ contract Verifier is Constants {
         verifyMulti(_commitment, _proof, _indices, _values, _iCoeffs, _zCoeffs);
     }
     */
-
-    
 }

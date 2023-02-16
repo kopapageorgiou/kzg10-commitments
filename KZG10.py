@@ -2,15 +2,28 @@ from typing import List, Tuple
 import json
 from functools import reduce
 from py_ecc.fields import bn128_FQ as FQ
+from py_ecc.fields import bn128_FQ2 as FQ2
+from py_ecc.bn128 import bn128_pairing as curvePairing
 from py_ecc import bn128 as curve
 from py_ecc.typing import Field
 from random import randint
+import numpy as np
 
 G1_POINTS = []
 
+SRS_G2_1 = (FQ2([
+                0x04c5e74c85a87f008a2feb4b5c8a1e7f9ba9d8eb40eb02e70139c89fb1c505a9,
+                0x21a808dad5c50720fb7294745cf4c87812ce0ea76baa7df4e922615d1388f25a
+            ]),
+            FQ2([
+                0x2d58022915fc6bc90e036e858fbc98055084ac7aff98ccceb0e3fde64bc1a084,
+                0x204b66d8e1fadc307c35187a6b813be0b46ba1cd720cd1c4ee5f68d13036b4ba
+                
+            ]))
+
 class KZG10(object):
 
-    def __init__(self) -> None:
+    def __init__(self, field = curve.curve_order) -> None:
         """
         Load G1 Points from tau json file
         and create GF with field= bn128.curve_order a.k.a BABYJUB_P (the same field with the one in solidity)
@@ -21,16 +34,22 @@ class KZG10(object):
         
         for point in g1_points:
             G1_POINTS.append(format_to_FQ(int(point[0], base=16), int(point[1], base=16)))
-
-        self.F = GF(curve.curve_order)
+        self.field = field
+        self.F = GF(field)
         
     def evalPolyAt(self, coefficients: List[Field], index: Field):
-        result = self.F(0)
+        """result = self.F(0)
         power_of_x = self.F(1)
 
         for coeff in coefficients:
             result = (result + (power_of_x * coeff))
             power_of_x = (power_of_x * index)
+
+        return result"""
+        result = self.F(0)
+        n = len(coefficients)
+        for i in range(n):
+            result += coefficients[i] * (index ** (n-i-1))
 
         return result
     
@@ -41,14 +60,15 @@ class KZG10(object):
         x_values = []
         val = []
         for x, y in enumerate(values):
-            x_values.append(y)
-            val.append(x)
+            x_values.append(x)
+            val.append(y)
 
-        pol = self._lagrange_interpolation([self.F(x) for x in x_values], [self.F(y) for y in val])
+        pol = self._lagrange_inter([self.F(x) for x in x_values], [self.F(y) for y in val])
         return(pol)
     
     def generate_proof(self, coefficients: List[Field], index: Field):
         quotientCoefficients = self._genQuotientPolynomial(coefficients, index)
+        print("here", quotientCoefficients)
         return self.generate_commitment(quotientCoefficients)
 
     def _genQuotientPolynomial(self, coefficients: List[Field], xVal = Field):
@@ -77,6 +97,17 @@ class KZG10(object):
             if i < len(p2):
                 result[i] -= p2[i]
         return result
+    
+    def _addPoly(self, p1, p2):
+        if len(p1) < len(p2):
+            p1 += [self.F(0)] * (len(p2) - len(p1))
+        else:
+            p2 += [self.F(0)] * (len(p1) - len(p2))
+        
+        # Perform element-wise addition of the coefficients
+        result = [a + b for a, b in zip(p1, p2)]
+        
+        return result
 
     def _divPoly(self, numerator, denominator):
         degree_numerator = len(numerator) - 1
@@ -91,6 +122,18 @@ class KZG10(object):
                 remainder[i + j] -= quotient[i] * denominator[j]
             del remainder[-1]
         return quotient, remainder
+    
+    def _mulPoly(self, poly1, poly2):
+    # Initialize an output polynomial with all coefficients set to zero
+        output_poly = [self.F(0)] * (len(poly1) + len(poly2) - 1)
+        # Multiply each term of poly1 with each term of poly2, and add the results to the output polynomial
+        for i, coeff1 in enumerate(poly1):
+            for j, coeff2 in enumerate(poly2):
+                #print(coeff1, coeff2)
+                output_poly[i+j] += coeff1 * coeff2
+
+        return output_poly
+
 
     def _lagrange_interpolation(self, x_vals, y_vals):
         n = len(x_vals)
@@ -106,7 +149,43 @@ class KZG10(object):
                 numerator *= x_vals[j] - x_i
                 denominator *= x_vals[j] - y_i
             coefficients[i] = y_i * numerator / denominator
-        return coefficients 
+        return coefficients
+    
+    def _lagrange_inter(self, x_vals, y_vals):
+        L = [self.F(0)]
+        k = len(x_vals)
+        for j in range(k):
+            lj = [y_vals[j]]
+            for m in range(k):
+                if m == j:
+                    continue
+                ljm = self._mulPoly([1, -x_vals[m]], [self._RECIPROCAL(int(x_vals[j] - x_vals[m]))])
+                lj = self._mulPoly(lj, ljm)
+            L = self._addPoly(L, lj)
+        return L
+
+
+    def _RECIPROCAL(self, a):
+        if a == 0:
+            return 0
+        lm, hm = 1, 0
+        low, high = a % self.field, self.field
+        while low > 1:
+            r = high//low
+            nm, new = hm-lm*r, high-low*r
+            lm, low, hm, high = nm, new, lm, low
+        return lm % self.field
+
+    def verify(self, commitment, proof, index, value):
+        commitmentMinusA = curve.add(commitment, curve.neg(curve.multiply(curve.G1, int(value))))
+        negProof = curve.neg(proof)
+        indexMulProof = curve.multiply(proof, int(index))
+        #return [commitmentMinusA, negProof, indexMulProof]
+
+        a = curvePairing.pairing(curve.G2, curve.add(indexMulProof, commitmentMinusA))
+        b = curvePairing.pairing(SRS_G2_1, negProof)
+        ab = a*b
+        print(ab == curve.FQ12.one())
 
 
 class Field(object):
@@ -202,11 +281,18 @@ def format_field_to_int(value: Field | List[Field]):
         return [int(val) for val in value]
     
     
+    
 
 def main():
-    kzg = KZG10()
-    coeffs = kzg.generate_coeffs_2([5, 25, 30, 80])
+    kzg = KZG10(127)
+    coeffs = kzg.generate_coeffs_for([5, 25, 125])
+    commit = kzg.generate_commitment(coeffs)
     print(coeffs)
+    x = kzg.get_index_x(1)
+    y = kzg.evalPolyAt(coeffs, x)
+
+    proof = kzg.generate_proof(coeffs, x)
+    kzg.verify(commit, proof, x, y)
 
 if __name__ == "__main__":
     main()
