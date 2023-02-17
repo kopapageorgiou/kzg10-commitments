@@ -1,6 +1,6 @@
-pragma solidity ^0.8.0;
+pragma solidity ^0.5.0;
 
-//import "./Pairing.sol";
+import "./Pairing.sol";
 
 /*
  * The values in this file come from challenge file #46 of the Perpetual Powers
@@ -25,7 +25,7 @@ pragma solidity ^0.8.0;
  */
 
 contract Constants {
-    //using Pairing for *;
+    using Pairing for *;
 
     uint256 constant PRIME_Q = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
     uint256 constant BABYJUB_P = 21888242871839275222246405745257275088548364400416034343698204186575808495617;

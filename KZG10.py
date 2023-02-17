@@ -1,10 +1,13 @@
-from typing import List, Tuple
+from typing import List, Tuple, Type
 import json
 from functools import reduce
 from py_ecc.fields import bn128_FQ as FQ
 from py_ecc.fields import bn128_FQ2 as FQ2
+from py_ecc.fields import bn128_FQ12 as FQ12
 from py_ecc.bn128 import bn128_pairing as curvePairing
 from py_ecc import bn128 as curve
+from py_ecc.bn128 import bn128_curve as cu
+from py_ecc.bn128.bn128_curve import G2
 from py_ecc.typing import Field
 from random import randint
 import numpy as np
@@ -23,7 +26,7 @@ SRS_G2_1 = (FQ2([
 
 class KZG10(object):
 
-    def __init__(self, field = curve.curve_order) -> None:
+    def __init__(self, field = cu.curve_order) -> None:
         """
         Load G1 Points from tau json file
         and create GF with field= bn128.curve_order a.k.a BABYJUB_P (the same field with the one in solidity)
@@ -38,18 +41,18 @@ class KZG10(object):
         self.F = GF(field)
         
     def evalPolyAt(self, coefficients: List[Field], index: Field):
-        """result = self.F(0)
+        result = self.F(0)
         power_of_x = self.F(1)
 
         for coeff in coefficients:
             result = (result + (power_of_x * coeff))
             power_of_x = (power_of_x * index)
 
-        return result"""
-        result = self.F(0)
+        return result
+        """result = self.F(0)
         n = len(coefficients)
         for i in range(n):
-            result += coefficients[i] * (index ** (n-i-1))
+            result += coefficients[i] * (index ** (n-i-1))"""
 
         return result
     
@@ -64,14 +67,14 @@ class KZG10(object):
             val.append(y)
 
         pol = self._lagrange_inter([self.F(x) for x in x_values], [self.F(y) for y in val])
-        return(pol)
+        return _swap(pol)
     
     def generate_proof(self, coefficients: List[Field], index: Field):
         quotientCoefficients = self._genQuotientPolynomial(coefficients, index)
-        print("here", quotientCoefficients)
+        #print("here", quotientCoefficients)
         return self.generate_commitment(quotientCoefficients)
 
-    def _genQuotientPolynomial(self, coefficients: List[Field], xVal = Field):
+    def _genQuotientPolynomial(self, coefficients: List[Field], xVal: Field):
         yVal = self.evalPolyAt(coefficients, xVal)
         x = [self.F(0), self.F(1)]
         res = self._divPoly(self._subPoly(coefficients, [yVal]), self._subPoly(x, [xVal]))[0]
@@ -85,7 +88,7 @@ class KZG10(object):
 	Copute commitment to the evaluation of the polynomial given the coefficients
 	"""
     def generate_commitment(self, coefficients: List[Field]):
-        return reduce(curve.add, [curve.multiply(G1_POINTS[i], int(c_i))
+        return reduce(cu.add, [cu.multiply(G1_POINTS[i], int(c_i))
 							        for i, c_i in enumerate(coefficients)])
 
     def _subPoly(self, p1: List[Field], p2: List[Field]):
@@ -175,17 +178,18 @@ class KZG10(object):
             nm, new = hm-lm*r, high-low*r
             lm, low, hm, high = nm, new, lm, low
         return lm % self.field
+    
 
-    def verify(self, commitment, proof, index, value):
-        commitmentMinusA = curve.add(commitment, curve.neg(curve.multiply(curve.G1, int(value))))
-        negProof = curve.neg(proof)
-        indexMulProof = curve.multiply(proof, int(index))
+    def verify_off_chain(self, commitment, proof, index, value):
+        commitmentMinusA = cu.add(commitment, cu.neg(cu.multiply(cu.G1, int(value))))
+        negProof = cu.neg(proof)
+        indexMulProof = cu.multiply(proof, int(index))
         #return [commitmentMinusA, negProof, indexMulProof]
-
-        a = curvePairing.pairing(curve.G2, curve.add(indexMulProof, commitmentMinusA))
+        a = curvePairing.pairing(G2, cu.add(indexMulProof, commitmentMinusA))
         b = curvePairing.pairing(SRS_G2_1, negProof)
         ab = a*b
-        print(ab == curve.FQ12.one())
+        print(a, b)
+        return ab == FQ12.one()
 
 
 class Field(object):
@@ -280,7 +284,23 @@ def format_field_to_int(value: Field | List[Field]):
     else:
         return [int(val) for val in value]
     
-    
+def _swap(l):
+    def swapPositions(list, pos):
+        #print(list[pos], list[pos-1])
+        list[pos], list[-pos-1] = list[-pos-1], list[pos]
+        return list
+    res = []
+    if len(l) % 2 == 1:
+        middle = len(l)+1//2
+        #print(middle)
+        for i in range(middle-2):
+            res = swapPositions(l, i).copy()
+    else:
+        middle = len(l)//2
+        for i in range(middle):
+            res = swapPositions(l,i).copy()
+    return res
+
     
 
 def main():
@@ -288,11 +308,13 @@ def main():
     coeffs = kzg.generate_coeffs_for([5, 25, 125])
     commit = kzg.generate_commitment(coeffs)
     print(coeffs)
+    for i in range(len(coeffs)):
+        print(kzg.evalPolyAt(coeffs, kzg.F(i)))
     x = kzg.get_index_x(1)
     y = kzg.evalPolyAt(coeffs, x)
 
     proof = kzg.generate_proof(coeffs, x)
-    kzg.verify(commit, proof, x, y)
+    kzg.verify_off_chain(commit, proof, x, y)
 
 if __name__ == "__main__":
     main()
