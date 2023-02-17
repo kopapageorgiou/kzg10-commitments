@@ -1,13 +1,14 @@
 // Modified from https://github.com/appliedzkp/semaphore/blob/master/contracts/sol/verifier.sol
 pragma experimental ABIEncoderV2;
-pragma solidity ^0.5.0;
+pragma solidity ^0.8.0;
 
 import "./Pairing.sol";
 import { Constants } from "./Constants.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract Verifier is Constants {
 
-    using Pairing for *;
+    //using Pairing for *;
 
     // The G1 generator
     Pairing.G1Point SRS_G1_0 = Pairing.G1Point({
@@ -201,7 +202,7 @@ contract Verifier is Constants {
             require(zEval == 0, "Verifier.verifyMulti: invalid _zCoeffs");
 
             uint256 iEval = evalPolyAt(_iCoeffs, _indices[i]);
-            require(iEval == _values[i], "Verifier.verifyMulti: invalid _iCoeffs");
+            require(iEval == _values[i], Strings.toString(_values[i]));
         }
 
         // Generate the KZG commitments to the i and z polynominals

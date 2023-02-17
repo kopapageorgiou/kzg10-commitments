@@ -31,6 +31,9 @@ class smartContract(object):
 
     def verify(self, commitment, proof, index, value):
         return self.contract.functions.verify(commitment, proof, index, value).call()
+    
+    def verifyMulti(self, commitment, proof, indices, values, iCoeffs, zCoeffs):
+        return self.contract.functions.verifyMulti(commitment, proof, indices, values, iCoeffs, zCoeffs).call()
 
     def commit(self, coefficients):
         return self.contract.functions.commit(coefficients).call()

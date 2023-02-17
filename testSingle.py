@@ -519,9 +519,37 @@ def testRun():
 	print("\nResult of on-chain verification:", tx)
 	result = kzg.verify_off_chain(commit, proof, index_x, value_y)
 	print("\nResult of off-chain verification:", result)
+
+def testMultiProof():
+	contract = smartContract()
+	kzg = KZG10()
+	values = [5, 25, 125, 150, 70]
+	coeffs = kzg.generate_coeffs_for(values)
+	indices = [i for i in range(len(coeffs))]
+	print("Coefficients:", coeffs, "\n")			
+	print("\nIndices:", indices, "\n")
+	print("\nValues:", values, "\n")
+	commit = kzg.generate_commitment(coeffs)		#! Generating commitment
+	#print("\nCommitment: \n", commit)
+	tx = contract.commit(format_field_to_int(coeffs))
+	print("\nIs the commitment equal with the commitment from the chain?", tx == format_FQ_G1Point(commit))
+	proof, icoeffs, zcoeffs = kzg.generate_multi_proof(coeffs, indices, values)		#! Generating proof
+	#print(icoeffs)
+	#print(format_field_to_int(icoeffs))
+	print("proof: ", proof)
+	#print(format_FQ_G1Point(commit))
+	#print(format_FQ_G1Point(proof))
+	tx = contract.verifyMulti(format_FQ_G1Point(commit),	#! Verifying on-chain
+							formatG2(proof),
+							indices,
+							values,
+							format_field_to_int(icoeffs),
+							format_field_to_int(zcoeffs))
+	print("\nResult of on-chain verification:", tx)
 if __name__ == "__main__":
 	#Prove()
-	testRun()
+	#testRun()
+	testMultiProof()
 
 
 

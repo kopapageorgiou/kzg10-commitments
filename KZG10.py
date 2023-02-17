@@ -13,6 +13,7 @@ from random import randint
 import numpy as np
 
 G1_POINTS = []
+G2_POINTS = []
 
 SRS_G2_1 = (FQ2([
                 0x04c5e74c85a87f008a2feb4b5c8a1e7f9ba9d8eb40eb02e70139c89fb1c505a9,
@@ -37,6 +38,15 @@ class KZG10(object):
         
         for point in g1_points:
             G1_POINTS.append(format_to_FQ(int(point[0], base=16), int(point[1], base=16)))
+        
+        with open('taug2_65536.json', 'r') as file:
+            g2_points = json.load(file)
+        file.close()
+
+        for i in range(len(g2_points)):
+            G2_POINTS.append((FQ2([int(g2_points[i][0], base=16), int(g2_points[i][1], base=16)]),
+                             FQ2([int(g2_points[i][2], base=16), int(g2_points[i][3], base=16)])))
+        
         self.field = field
         self.F = GF(field)
         
@@ -67,7 +77,7 @@ class KZG10(object):
             val.append(y)
 
         pol = self._lagrange_inter([self.F(x) for x in x_values], [self.F(y) for y in val])
-        return _swap(pol)
+        return pol#_swap(pol)
     
     def generate_proof(self, coefficients: List[Field], index: Field):
         quotientCoefficients = self._genQuotientPolynomial(coefficients, index)
@@ -138,7 +148,7 @@ class KZG10(object):
         return output_poly
 
 
-    def _lagrange_interpolation(self, x_vals, y_vals):
+    """def _lagrange_interpolation(self, x_vals, y_vals):
         n = len(x_vals)
         coefficients = [self.F(0) for i in range(n)]
         for i in range(n):
@@ -152,7 +162,7 @@ class KZG10(object):
                 numerator *= x_vals[j] - x_i
                 denominator *= x_vals[j] - y_i
             coefficients[i] = y_i * numerator / denominator
-        return coefficients
+        return coefficients"""
     
     def _lagrange_inter(self, x_vals, y_vals):
         L = [self.F(0)]
@@ -180,6 +190,58 @@ class KZG10(object):
         return lm % self.field
     
 
+    def generate_multi_proof(self, coefficients: List[Field], indices: List[int], values: List[int]):
+        indices = [self.F(indice) for indice in indices]
+        values = [self.F(value) for value in values]
+        poly = coefficients
+        ipoly = self._genInterpolatingPoly(poly, indices)
+        #print(ipoly)
+        zpoly = self._genZeroPoly(indices)
+        #print(zpoly)
+        qPoly = self._divPoly(self._subPoly(poly, ipoly), zpoly)
+        #print(qPoly)
+        multiproof = self._polyCommit(qPoly[1])
+        
+        #iCoeffs = self._lagrange_inter(indices, [self.evalPolyAt(coefficients, indice) for indice in indices])
+        #print(ipoly)
+        return multiproof, ipoly, zpoly
+
+    
+    def _polyCommit(self, coefficients: List[Field]):
+        return reduce(cu.add, [cu.multiply(G2_POINTS[i], int(c_i))
+							        for i, c_i in enumerate(coefficients)])
+
+    def _srsG2(self, amount: int):
+        return [G2_POINTS[i] for i in range(amount)]
+    
+    def _genZeroPoly(self, indices: List[Field]):
+        zPoly = [self.mod(-1 * int(indices[0])), self.F(1)]
+        for indice in indices:
+            zPoly = self._mulPoly(zPoly, [self.F(-1) * indice, self.F(1)])
+
+        return zPoly
+
+
+
+    def mod(self, value: int) -> int:
+        if value >= 0:
+            return self.F(value % self.field)
+        else:
+            return self.F(((value % self.field) + self.field) % self.field)
+
+    def _genInterpolatingPoly(self, poly: List[Field], indices: List[Field]):
+        x = []
+        values = []
+        
+        for indice in indices:
+            values.append(self.evalPolyAt(poly, indice))
+            x.append(indice)
+        
+        coeffs = self._lagrange_inter(x, values)
+        #print(self.evalPolyAt(coeffs, self.F(4)))
+        return coeffs
+            
+
     def verify_off_chain(self, commitment, proof, index, value):
         commitmentMinusA = cu.add(commitment, cu.neg(cu.multiply(cu.G1, int(value))))
         negProof = cu.neg(proof)
@@ -188,7 +250,7 @@ class KZG10(object):
         a = curvePairing.pairing(G2, cu.add(indexMulProof, commitmentMinusA))
         b = curvePairing.pairing(SRS_G2_1, negProof)
         ab = a*b
-        print(a, b)
+        #print(a, b)
         return ab == FQ12.one()
 
 
@@ -277,6 +339,12 @@ def format_to_FQ(x_point: int, y_point: int):
 def format_FQ_G1Point(data: Tuple[Field, Field]):
     x, y = data
     return (int(str(x)), int(str(y)))
+
+def formatG2(data):
+    p1, p2 = data
+    x1, x2 = p1.coeffs
+    y1, y2 = p2.coeffs
+    return ([int(x1),int(x2)],[int(y1),int(y2)])
 
 def format_field_to_int(value: Field | List[Field]):
     if (type(value) == Field):
