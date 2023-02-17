@@ -525,7 +525,8 @@ def testMultiProof():
 	kzg = KZG10()
 	values = [5, 25, 125, 150, 70]
 	coeffs = kzg.generate_coeffs_for(values)
-	indices = [i for i in range(len(coeffs))]
+	indices = [i for i in range(len(coeffs)-1)]
+	values = [contract.evalPolyAt(format_field_to_int(coeffs), i) for i in indices]
 	print("Coefficients:", coeffs, "\n")			
 	print("\nIndices:", indices, "\n")
 	print("\nValues:", values, "\n")
@@ -534,13 +535,19 @@ def testMultiProof():
 	tx = contract.commit(format_field_to_int(coeffs))
 	print("\nIs the commitment equal with the commitment from the chain?", tx == format_FQ_G1Point(commit))
 	proof, icoeffs, zcoeffs = kzg.generate_multi_proof(coeffs, indices, values)		#! Generating proof
+	# print(commit,"\n")
+	# print(proof,"\n")
+	# print(indices,"\n")
+	# print(values,"\n")
+	# print(icoeffs,"\n")
+	# print(zcoeffs,"\n")
 	#print(icoeffs)
 	#print(format_field_to_int(icoeffs))
-	print("proof: ", proof)
+	#print("proof: ", proof)
 	#print(format_FQ_G1Point(commit))
 	#print(format_FQ_G1Point(proof))
 	tx = contract.verifyMulti(format_FQ_G1Point(commit),	#! Verifying on-chain
-							formatG2(proof),
+							format_proof(proof),
 							indices,
 							values,
 							format_field_to_int(icoeffs),

@@ -202,7 +202,7 @@ contract Verifier is Constants {
             require(zEval == 0, "Verifier.verifyMulti: invalid _zCoeffs");
 
             uint256 iEval = evalPolyAt(_iCoeffs, _indices[i]);
-            require(iEval == _values[i], Strings.toString(_values[i]));
+            require(iEval == _values[i], Strings.toString(iEval));
         }
 
         // Generate the KZG commitments to the i and z polynominals

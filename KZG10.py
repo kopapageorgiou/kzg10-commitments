@@ -77,7 +77,7 @@ class KZG10(object):
             val.append(y)
 
         pol = self._lagrange_inter([self.F(x) for x in x_values], [self.F(y) for y in val])
-        return pol#_swap(pol)
+        return _swap(pol)
     
     def generate_proof(self, coefficients: List[Field], index: Field):
         quotientCoefficients = self._genQuotientPolynomial(coefficients, index)
@@ -200,11 +200,11 @@ class KZG10(object):
         #print(zpoly)
         qPoly = self._divPoly(self._subPoly(poly, ipoly), zpoly)
         #print(qPoly)
-        multiproof = self._polyCommit(qPoly[1])
-        
-        #iCoeffs = self._lagrange_inter(indices, [self.evalPolyAt(coefficients, indice) for indice in indices])
+        multiproof = self._polyCommit(qPoly[0])
+        iCoeffs = _swap(self._lagrange_inter(indices, values))
+        #print("here",iCoeffs)
         #print(ipoly)
-        return multiproof, ipoly, zpoly
+        return multiproof, iCoeffs, zpoly
 
     
     def _polyCommit(self, coefficients: List[Field]):
@@ -215,11 +215,13 @@ class KZG10(object):
         return [G2_POINTS[i] for i in range(amount)]
     
     def _genZeroPoly(self, indices: List[Field]):
-        zPoly = [self.mod(-1 * int(indices[0])), self.F(1)]
+        zPoly = [self.F(-1) * indices[0], self.F(1)]
+        #print(zPoly)
         for indice in indices:
             zPoly = self._mulPoly(zPoly, [self.F(-1) * indice, self.F(1)])
+            #print(zPoly[1:])
 
-        return zPoly
+        return zPoly[1:]
 
 
 
@@ -237,7 +239,7 @@ class KZG10(object):
             values.append(self.evalPolyAt(poly, indice))
             x.append(indice)
         
-        coeffs = self._lagrange_inter(x, values)
+        coeffs = _swap(self._lagrange_inter(x, values))
         #print(self.evalPolyAt(coeffs, self.F(4)))
         return coeffs
             
@@ -340,11 +342,11 @@ def format_FQ_G1Point(data: Tuple[Field, Field]):
     x, y = data
     return (int(str(x)), int(str(y)))
 
-def formatG2(data):
+def format_proof(data):
     p1, p2 = data
     x1, x2 = p1.coeffs
     y1, y2 = p2.coeffs
-    return ([int(x1),int(x2)],[int(y1),int(y2)])
+    return ([int(x2),int(x1)],[int(y2),int(y1)])
 
 def format_field_to_int(value: Field | List[Field]):
     if (type(value) == Field):
