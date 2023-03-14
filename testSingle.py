@@ -562,12 +562,38 @@ def testRun():
 	#					format_field_to_int(value_y))
 	#print("\nResult of on-chain verification:", tx)
 	#print(kzg.verify(commit, proof, index_x, value_y))
+def testNewton(x_values, values, index):
+	kzg = KZG10()
+	start = time.thread_time()
+	coeffs = kzg.generate_coeffs_for2(values)
+	#print("coeffs:", coeffs[0])
+	y = kzg.newton_poly2(coeffs[0], x_values, index)
+	end = time.process_time() - start
+	print(f"Newton Interpolation for {len(values)} values")
+	print('-'*50)
+	print(f"Cpu time: {end} secs")
+	print(f"Is evaluation correct? {int(y) == values[index]}")
+	print('='*50)
+
+def testSpline(x_values, values, index):
+	kzg = KZG10()
+	start = time.process_time()
+	coeffs = kzg.cubic_spline_coefficients(x_values, values)
+	y = kzg.evaluate_cubic_spline(coeffs, x_values, index)
+	end = time.process_time() - start
+	print(f"Cubic Spline Interpolation for {len(values)} values")
+	print('-'*50)
+	print(f"Cpu time: {end} secs")
+	print(f"Is evaluation correct? {int(y) == values[index]}")
 
 if __name__ == "__main__":
 	#Prove()
 	#testRun()
 	#testMultiProof()
-	testSpline()
+	values = [randint(1,500) for i in range(500)]
+	x_values = [i for i in range(len(values))]
+	testNewton(x_values, values, randint(0, len(values)-1))
+	testSpline(x_values, values, randint(0, len(values)-1))
 
 
 
