@@ -99,6 +99,36 @@ contract Verifier is Constants {
         );
     }
 
+<<<<<<< HEAD
+=======
+    function evalPolyAt(uint256[] memory coeffs, uint256 x) public view returns (uint256) {
+        uint256 result = 0;
+        uint256 n = coeffs.length;
+        uint256 fieldSize = Constants.BABYJUB_P;
+        for (uint256 i = 0; i < n; i++) {
+            uint256 term = mulmod(coeffs[i], pow(x, n-i-1, fieldSize), fieldSize);
+            result = addmod(result, term, fieldSize);
+        }
+        
+        return result;
+    }
+
+    function pow(uint256 base, uint256 exp, uint256 fieldSize) internal view returns (uint256) {
+        if (exp == 0) {
+            return 1;
+        } else if (exp == 1) {
+            return base;
+        } else {
+            uint256 temp = pow(base, exp / 2, fieldSize);
+            if (exp % 2 == 0) {
+                return mulmod(temp, temp, fieldSize);
+            } else {
+                return mulmod(mulmod(temp, temp, fieldSize), base, fieldSize);
+            }
+        }
+    }
+
+>>>>>>> 92fe867 (added newton)
     /*
      * @return A KZG commitment to a polynominal
      * @param coefficients The coefficients of the polynomial to which to

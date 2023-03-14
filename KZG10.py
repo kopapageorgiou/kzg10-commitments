@@ -79,6 +79,43 @@ class KZG10(object):
         pol = self._lagrange_inter([self.F(x) for x in x_values], [self.F(y) for y in val])
         return _swap(pol)
     
+    def generate_coeffs_for2(self, values: List[int]):
+        x_values = []
+        val = []
+        for x, y in enumerate(values):
+            x_values.append(x)
+            val.append(y)
+        
+        pol = self.divided_diff([self.F(x) for x in x_values], [self.F(y) for y in val])
+        return pol
+
+    def divided_diff(self, x,y):
+        n = len(y)
+
+        # coef = np.zeros([n,n])
+        #coef = [[self.F(0)]]
+        coef = [[self.F(0) for i in range(n)] for j in range(n)]
+        
+        # coef[:,0] = y
+        # first_col = []
+        # for row in coef:
+        #     first_col.append(row[0])
+        for i in range(n):
+            coef[i][0] = Field(y[i],self.field)
+
+        for j in range(1,n):
+            for i in range(n-j):
+                coef[i][j] = (coef[i+1][j-1]-coef[i][j-1])/((x[i+j]-x[i]))
+        return coef
+        
+    def newton_poly(self, coef, x_data, x):
+        n = len(x_data) - 1
+        p = coef[n]
+
+        for k in range(1, n+1):
+            p = coef[n-k] + (x-x_data[n-k])*p
+        return p
+
     def generate_proof(self, coefficients: List[Field], index: Field):
         quotientCoefficients = self._genQuotientPolynomial(coefficients, index)
         #print("here", quotientCoefficients)

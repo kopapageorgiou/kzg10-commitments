@@ -10,6 +10,9 @@ import sys
 from py_ecc.fields import bn128_FQ2 as FQ2
 from py_ecc.typing import Point2D, Field
 from KZG10 import *
+import random
+import time
+
 
 """
 Implementation of PolyCommit_{DL} from:
@@ -490,78 +493,76 @@ def Prove():
 	#print('ab', ab, ab == curve.FQ12.one())
 
 
+def genereateRandoms():
+	unique_numbers = set()
+	# generate random numbers until we have 100 unique ones
+	while len(unique_numbers) < 350:
+		unique_numbers.add(random.randint(1, 1000000))
+
+	# convert the set to a list and sort it
+	random_numbers = sorted(list(unique_numbers))
+	return random_numbers
+
+
 def testRun():
-	contract = smartContract()
+	#contract = smartContract()
+
 	kzg = KZG10()
-	coeffs = kzg.generate_coeffs_for([5, 25, 125, 150, 70])
+	
+	start_time = time.time()  # get the current time in seconds
+
+	coeffs = kzg.generate_coeffs_for([5, 66, 120, 212])
+
+	end_time = time.time()  # get the current time again
+
+	elapsed_time = end_time - start_time  # calculate the elapsed time in seconds
+
+	print("Elapsed time:", elapsed_time, "seconds")
+
+	start_time = time.time()  # get the current time in seconds
+
+	x = np.arange(0, 200, 1)
+	#y = random_numbers
+	coefs2 = kzg.generate_coeffs_for2([5, 66, 120, 212])
+
+	#a_s = divided_diff(x, random_numbers)[0, :]
+
+	#x_new = np.arange(0, 200, 1)
+	#y_new = newton_poly(a_s, x, x_new)
+	
+	elapsed_time = end_time - start_time  # calculate the elapsed time in seconds
+
+	print("Elapsed time:", elapsed_time, "seconds")
+	print("Coefs : ", coeffs)
+	print("Coefs2 : ", coefs2[0])
+	
 	#coeffs = kzg.generate_coeffs(10)
-	print("coefficients:", coeffs, "\n")
-	index_x = kzg.get_index_x(2)  					#! Choosing index_x
-	print("\nIndex x:", index_x, "\n")
+	#print("coefficients = \n", x_new)
+	#print("coefficients = \n", y_new)
+	#index_x = kzg.get_index_x(1)  					#! Choosing index_x
+	#print("\nIndex x:\n", index_x)
 	#print("index-x =", index_x)
-	value_y = kzg.evalPolyAt(coeffs, index_x)		#! Evaluating polynomial at index_x to get y_value
-	print("\ny value:", value_y, "\n")
-	tx = contract.evalPolyAt(format_field_to_int(coeffs), format_field_to_int(index_x))
+	#value_y = kzg.evalPolyAt(coeffs, index_x)		#! Evaluating polynomial at index_x to get y_value
+	#print("\ny value:\n", value_y)
+
+
+
+	#tx = contract.evalPolyAt2(format_field_to_int(coeffs), format_field_to_int(index_x))
 	#print(tx)
-	print("\nIs the y value equal with the value from the chain?", format_field_to_int(value_y) == tx)
-	commit = kzg.generate_commitment(coeffs)		#! Generating commitment
+	#print("\nIs the y value equal with the value from the chain?", format_field_to_int(value_y) == tx)
+	#commit = kzg.generate_commitment(coeffs)		#! Generating commitment
 	#print("\nCommitment: \n", commit)
-	tx = contract.commit(format_field_to_int(coeffs))
-	print("\nIs the commitment equal with the commitment from the chain?", tx == format_FQ_G1Point(commit))
-	proof = kzg.generate_proof(coeffs, index_x)		#! Generating proof
-	#print("proof: ", proof)
-	#print(format_FQ_G1Point(commit))
-	#print(format_FQ_G1Point(proof))
-	tx = contract.verify(format_FQ_G1Point(commit),	#! Verifying on-chain
-		    			format_FQ_G1Point(proof),
-						format_field_to_int(index_x),
-						format_field_to_int(value_y))
-	print("\nResult of on-chain verification:", tx)
-	result = kzg.verify_off_chain(commit, proof, index_x, value_y)
-	print("\nResult of off-chain verification:", result)
+	#tx = contract.commit(format_field_to_int(coeffs))
+	#print("\nIs the commitment equal with the commitment from the chain?", tx == format_FQ_G1Point(commit))
+	#proof = kzg.generate_proof(coeffs, index_x)		#! Generating proof
+	#print("proof =", proof)
+	#tx = contract.verify(format_FQ_G1Point(commit),	#! Verifying on-chain
+	#	    			format_FQ_G1Point(proof),
+	#					format_field_to_int(index_x),
+	#					format_field_to_int(value_y))
+	#print("\nResult of on-chain verification:", tx)
+	#print(kzg.verify(commit, proof, index_x, value_y))
 
-def testMultiProof():
-	contract = smartContract()
-	kzg = KZG10()
-	values = [5, 25, 125, 150, 70]
-	coeffs = kzg.generate_coeffs_for(values)
-	coeffs2 = kzg.cubic_spline_coefficients([0,1,2,3,4], values)
-	print(coeffs2)
-	indices = [i for i in range(len(coeffs)-1)]
-	values = [contract.evalPolyAt(format_field_to_int(coeffs), i) for i in indices]
-	print("Coefficients:", coeffs, "\n")			
-	print("\nIndices:", indices, "\n")
-	print("\nValues:", values, "\n")
-	commit = kzg.generate_commitment(coeffs)		#! Generating commitment
-	#print("\nCommitment: \n", commit)
-	tx = contract.commit(format_field_to_int(coeffs))
-	print("\nIs the commitment equal with the commitment from the chain?", tx == format_FQ_G1Point(commit))
-	proof, icoeffs, zcoeffs = kzg.generate_multi_proof(coeffs, indices, values)		#! Generating proof
-	# print(commit,"\n")
-	# print(proof,"\n")
-	# print(indices,"\n")
-	# print(values,"\n")
-	# print(icoeffs,"\n")
-	# print(zcoeffs,"\n")
-	#print(icoeffs)
-	#print(format_field_to_int(icoeffs))
-	#print("proof: ", proof)
-	#print(format_FQ_G1Point(commit))
-	#print(format_FQ_G1Point(proof))
-	tx = contract.verifyMulti(format_FQ_G1Point(commit),	#! Verifying on-chain
-							format_proof(proof),
-							indices,
-							values,
-							format_field_to_int(icoeffs),
-							format_field_to_int(zcoeffs))
-	print("\nResult of on-chain verification:", tx)
-
-def testSpline():
-	kzg = KZG10()
-	values = [5, 25, 125, 150, 70]
-	coeffs2 = kzg.cubic_spline_coefficients([0,1,2,3,4], values)
-	print(coeffs2)
-	print(kzg.eval_cubic_polynomial(coeffs2, 3))
 if __name__ == "__main__":
 	#Prove()
 	#testRun()
