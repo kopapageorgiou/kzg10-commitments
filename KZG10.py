@@ -254,6 +254,62 @@ class KZG10(object):
         ab = a*b
         #print(a, b)
         return ab == FQ12.one()
+    
+    def cubic_spline_coefficients(self, x, y):
+        n = len(x)
+        h = [self.F(0)] * (n-1)
+        for i in range(n-1):
+            h[i] = self.F(x[i+1]) - self.F(x[i])
+
+        alpha = [self.F(0)] * (n-1)
+        for i in range(1, n-1):
+            alpha[i] = (self.F(3)/h[i]) * (self.F(y[i+1])-self.F(y[i])) - (self.F(3)/h[i-1]) * (self.F(y[i])-self.F(y[i-1]))
+
+        l = [self.F(1)] + [self.F(0)] * (n-2)
+        mu = [self.F(0)] * (n-1)
+        z = [self.F(0)] * n
+        for i in range(1, n-1):
+            l[i] = self.F(2) * (self.F(x[i+1]) - self.F(x[i-1])) - h[i-1] * mu[i-1]
+            mu[i] = h[i] / l[i]
+            z[i] = (alpha[i] - h[i-1] * z[i-1]) / l[i]
+
+        c = [self.F(0)] * n
+        b = [self.F(0)] * (n-1)
+        d = [self.F(0)] * (n-1)
+        c[-1] = self.F(0)
+        for j in range(n-2, -1, -1):
+            c[j] = z[j] - mu[j] * c[j+1]
+            b[j] = (self.F(y[j+1]) - self.F(y[j])) / h[j] - h[j] * (c[j+1] + self.F(2)*c[j]) / self.F(3)
+            d[j] = (c[j+1] - c[j]) / (self.F(3)*h[j])
+
+        # The coefficients of the cubic polynomials are stored in a list
+        coeffs = []
+        for i in range(n-1):
+            coeffs.append(self.F(y[i]))
+            coeffs.append(b[i])
+            coeffs.append(c[i])
+            coeffs.append(d[i])
+
+        return coeffs
+    
+    def eval_cubic_polynomial(self, coeffs, x_new):
+    # Find the index of the interval that x_new falls in
+        i = 0
+        while i < len(coeffs) // 4 - 1 and self.F(x_new) > coeffs[4*i+3]:
+            print(i)
+            i += 1
+
+        # Get the coefficients of the cubic polynomial for the interval
+        a0, b0, c0, d0 = coeffs[4*i:4*i+4]
+
+        # Evaluate the cubic polynomial at x_new
+        dx = self.F(x_new) - coeffs[4*i]
+        return a0 + b0*dx + c0*dx**2 + d0*dx**3
+
+
+
+
+
 
 
 class Field(object):
@@ -370,7 +426,6 @@ def _swap(l):
         for i in range(middle):
             res = swapPositions(l,i).copy()
     return res
-
     
 
 def main():

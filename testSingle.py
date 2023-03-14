@@ -525,6 +525,8 @@ def testMultiProof():
 	kzg = KZG10()
 	values = [5, 25, 125, 150, 70]
 	coeffs = kzg.generate_coeffs_for(values)
+	coeffs2 = kzg.cubic_spline_coefficients([0,1,2,3,4], values)
+	print(coeffs2)
 	indices = [i for i in range(len(coeffs)-1)]
 	values = [contract.evalPolyAt(format_field_to_int(coeffs), i) for i in indices]
 	print("Coefficients:", coeffs, "\n")			
@@ -553,10 +555,18 @@ def testMultiProof():
 							format_field_to_int(icoeffs),
 							format_field_to_int(zcoeffs))
 	print("\nResult of on-chain verification:", tx)
+
+def testSpline():
+	kzg = KZG10()
+	values = [5, 25, 125, 150, 70]
+	coeffs2 = kzg.cubic_spline_coefficients([0,1,2,3,4], values)
+	print(coeffs2)
+	print(kzg.eval_cubic_polynomial(coeffs2, 3))
 if __name__ == "__main__":
 	#Prove()
 	#testRun()
-	testMultiProof()
+	#testMultiProof()
+	testSpline()
 
 
 
