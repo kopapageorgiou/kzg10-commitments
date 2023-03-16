@@ -579,20 +579,27 @@ def testSpline(x_values, values, index):
 	kzg = KZG10()
 	start = time.process_time()
 	coeffs = kzg.cubic_spline_coefficients(x_values, values)
-	y = kzg.evaluate_cubic_spline(coeffs, x_values, index)
+	y = kzg.evaluate_cubic_spline(coeffs, index)
+	#ofcomt = kzg.generate_commitment(coeffs)
+	comt = kzg.custom_commit(coeffs)
+	prf = kzg.custom_generate_proof(coeffs, index)
 	end = time.process_time() - start
 	print(f"Cubic Spline Interpolation for {len(values)} values")
 	print('-'*50)
+	#print(ofcomt)
+	print(comt)
+	print(prf)
 	print(f"Cpu time: {end} secs")
 	print(f"Is evaluation correct? {int(y) == values[index]}")
+	print(f"Is pairing correct? {kzg.verify_off_chain(comt, prf, index, values[index])}")
 
 if __name__ == "__main__":
 	#Prove()
 	#testRun()
 	#testMultiProof()
-	values = [randint(1,500) for i in range(500)]
+	values = [randint(1,500) for i in range(10)]
 	x_values = [i for i in range(len(values))]
-	testNewton(x_values, values, randint(0, len(values)-1))
+	#testNewton(x_values, values, randint(0, len(values)-1))
 	testSpline(x_values, values, randint(0, len(values)-1))
 
 
