@@ -13,7 +13,6 @@ from KZG10 import *
 import random
 import time
 
-
 """
 Implementation of PolyCommit_{DL} from:
 "Constant-Size Commitments to Polynomials and Their Applications"
@@ -23,7 +22,6 @@ Implementation of PolyCommit_{DL} from:
  - http://cacr.uwaterloo.ca/techreports/2010/cacr2010-10.pdf (extended version)
 Section 3.2
 """
-
 
 
 def as_bits_bytes(n):
@@ -593,15 +591,43 @@ def testSpline(x_values, values, index):
 	print(f"Is evaluation correct? {int(y) == values[index]}")
 	print(f"Is pairing correct? {kzg.verify_off_chain(comt, prf, index, values[index])}")
 
+def testLinear(x_values, values, index):
+	kzg = KZG10()
+	start = time.process_time()
+	coeffs = kzg.linear_interpolation(x_values, values)
+	print("size" + str(len(coeffs)))
+	y = kzg.linear_inter_evaluation(coeffs, x_values, index)
+	#print(coefficients)
+	end = time.process_time() - start
+	print(f"Linear Interpolation for {len(values)} values")
+	print('-'*50)
+	print(f"Cpu time: {end} secs")
+	print(f"Is evaluation correct? {int(y) == values[index]}")
+	print(f"Is pairing correct? {kzg.verify_off_chain(comt, prf, index, values[index])}")
+
+def testLinear(x_values, values, index):
+	kzg = KZG10()
+	start = time.process_time()
+	coeffs = kzg.linear_interpolation(x_values, values)
+	print("size" + str(len(coeffs)))
+	y = kzg.linear_inter_evaluation(coeffs, x_values, index)
+	#print(coefficients)
+	end = time.process_time() - start
+	print(f"Linear Interpolation for {len(values)} values")
+	print('-'*50)
+	print(f"Cpu time: {end} secs")
+	print(f"Is evaluation correct? {int(y) == values[index]}")
+
 if __name__ == "__main__":
 	#Prove()
 	#testRun()
 	#testMultiProof()
-	values = [randint(1,500) for i in range(10)]
+	values = [randint(1,500) for i in range(500)]
+	
 	x_values = [i for i in range(len(values))]
 	#testNewton(x_values, values, randint(0, len(values)-1))
 	testSpline(x_values, values, randint(0, len(values)-1))
-
+	testLinear(x_values, values, randint(0, len(values)-1))
 
 
 def derp(n):

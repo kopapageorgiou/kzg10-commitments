@@ -289,7 +289,6 @@ class KZG10(object):
         #print(self.evalPolyAt(coeffs, self.F(4)))
         return coeffs
             
-
     def verify_off_chain(self, commitment, proof, index, value):
         commitmentMinusA = cu.add(commitment, cu.neg(cu.multiply(cu.G1, int(value))))
         negProof = cu.neg(proof)
@@ -383,10 +382,36 @@ class KZG10(object):
         res = self._divPoly(self._subPoly(coefficients, [yVal]), self._subPoly(x, [xVal]))[0] # type: ignore
         return res
 
+    def linear_inter_evaluation(self, coeffs, x_data, index):
+        x_data = [self.F(x) for x in x_data]
+        """
+        Given the coefficients of a linear interpolation function, the x values of the input points,
+        and an index of the point to evaluate, returns the y value of the interpolated point at that index.
+        """
+        if index < 0 or index > len(x_data)-1:
+            raise ValueError("Index out of range.")
+        
+        slope, y_intercept = coeffs[index]
+        x = x_data[index]
+        return slope * x + y_intercept
+   
+    def linear_interpolation(self, x_values, y_values):
+        x_values = [self.F(x) for x in x_values]
+        y_values = [self.F(y) for y in y_values]
+        """
+        Given a list of points, returns a list of coefficients for a linear interpolation function.
+        Each point in the input list should be a tuple of two numbers, representing x and y values respectively.
+        """
+        n = len(x_values)
+        if n < 2:
+            raise ValueError("At least two points are required.")
 
+        # Calculate slopes and y-intercepts between each pair of adjacent points
+        slopes = [(y_values[i+1] - y_values[i]) / (x_values[i+1] - x_values[i]) for i in range(n-1)]
+        y_intercepts = [y_values[i] - slopes[i]*x_values[i] for i in range(n-1)]
 
-
-
+        # Return a list of coefficients as tuples (slope, y-intercept)
+        return [(slopes[i], y_intercepts[i]) for i in range(n-1)]
 
 
 
