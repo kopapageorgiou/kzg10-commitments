@@ -131,7 +131,7 @@ class KZG10(object):
         return self.generate_commitment(quotientCoefficients)
 
     def _genQuotientPolynomial(self, coefficients: List[Field], xVal: Field):
-        yVal = self.evalPolyAt(coefficients, xVal)
+        yVal = self.evaluate_cubic_spline(coefficients, xVal)
         x = [self.F(0), self.F(1)]
         res = self._divPoly(self._subPoly(coefficients, [yVal]), self._subPoly(x, [xVal]))[0]
         return res
