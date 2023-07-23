@@ -128,8 +128,9 @@ class KZG10(object):
 
     def generate_proof(self, coefficients: List[Field], index: Field):
         quotientCoefficients = self._genQuotientPolynomial(coefficients, index)
-        #print("here", quotientCoefficients)
-        return self.generate_commitment(quotientCoefficients)
+        
+        #return self.generate_commitment(quotientCoefficients)
+        return self.custom_commit(quotientCoefficients)
 
     def _genQuotientPolynomial(self, coefficients: List[Field], xVal: Field):
         yVal = self.evalPolyAt(coefficients, xVal)
@@ -140,6 +141,18 @@ class KZG10(object):
     def get_index_x(self, index: int):
         return self.F(index)
     
+    def custom_generate_proof(self, coefficients: List[Field], index: Field):
+        quotientCoefficients = self._customgenQuotientPolynomial(coefficients, index)
+        #print("here", quotientCoefficients)
+        return self.custom_commit(quotientCoefficients)
+
+    def _customgenQuotientPolynomial(self, coefficients: List[Field], xVal: int):
+        yVal = self.evaluate_cubic_spline(coefficients, xVal)
+        x = [self.F(0), self.F(1)]
+        res = self._divPoly(self._subPoly(coefficients, [yVal]), self._subPoly(x, [xVal]))[0] # type: ignore
+        return res
+    
+
 
     """
 	Copute commitment to the evaluation of the polynomial given the coefficients
@@ -147,7 +160,10 @@ class KZG10(object):
     def generate_commitment(self, coefficients: List[Field]):
         return reduce(cu.add, [cu.multiply(G1_POINTS[i], int(c_i))
 							        for i, c_i in enumerate(coefficients)])
-
+    def custom_commit(self, coeffs):
+        return _reduce(_add, [_multiply(G1_POINTS[i], int(c_i))
+                        for i, c_i in enumerate(coeffs)])
+    
     def _subPoly(self, p1: List[Field], p2: List[Field]):
         degree = max(len(p1), len(p2))
         result = [self.F(0)] * degree
@@ -368,20 +384,7 @@ class KZG10(object):
         #print(type(h), type(t))
         return a + b*t + c*t**2 + d*t**3
     
-    def custom_commit(self, coeffs):
-        return _reduce(_add, [_multiply(G1_POINTS[i], int(c_i))
-                        for i, c_i in enumerate(coeffs)])
-
-    def custom_generate_proof(self, coefficients: List[Field], index: Field):
-            quotientCoefficients = self._customgenQuotientPolynomial(coefficients, index)
-            #print("here", quotientCoefficients)
-            return self.custom_commit(quotientCoefficients)
-
-    def _customgenQuotientPolynomial(self, coefficients: List[Field], xVal: int):
-        yVal = self.evaluate_cubic_spline(coefficients, xVal)
-        x = [self.F(0), self.F(1)]
-        res = self._divPoly(self._subPoly(coefficients, [yVal]), self._subPoly(x, [xVal]))[0] # type: ignore
-        return res
+    
 
     def linear_inter_evaluation(self, coeffs, x_data, index):
         x_data = [self.F(x) for x in x_data]
