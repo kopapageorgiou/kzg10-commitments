@@ -124,6 +124,7 @@ class KZG10(object):
             p = coef[n-k] + (self.F(x)-self.F(x_data[n-k]))*p
             
         return p
+    
 
     def generate_proof(self, coefficients: List[Field], index: Field):
         quotientCoefficients = self._genQuotientPolynomial(coefficients, index)
@@ -131,7 +132,7 @@ class KZG10(object):
         return self.generate_commitment(quotientCoefficients)
 
     def _genQuotientPolynomial(self, coefficients: List[Field], xVal: Field):
-        yVal = self.evaluate_cubic_spline(coefficients, xVal)
+        yVal = self.evalPolyAt(coefficients, xVal)
         x = [self.F(0), self.F(1)]
         res = self._divPoly(self._subPoly(coefficients, [yVal]), self._subPoly(x, [xVal]))[0]
         return res

@@ -4,8 +4,8 @@ from math import ceil, log2
 from functools import reduce
 import operator
 from py_ecc import bn128 as curve
-from BlockchainLib import *
-from BLS import *
+#from BlockchainLib import *
+#from BLS import *
 import sys
 from py_ecc.fields import bn128_FQ2 as FQ2
 from py_ecc.typing import Point2D, Field
@@ -560,6 +560,20 @@ def testRun():
 	#					format_field_to_int(value_y))
 	#print("\nResult of on-chain verification:", tx)
 	#print(kzg.verify(commit, proof, index_x, value_y))
+
+def testLagrange(x_values, values, index):
+	kzg = KZG10()
+	coeffs = kzg.generate_coeffs_for(values)
+	print (f"coeffs {coeffs}")
+	value_y = kzg.evalPolyAt(coeffs, index)	
+	commit = kzg.generate_commitment(coeffs)
+	proof = kzg.generate_proof(coeffs, index)
+	verif = kzg.verify_off_chain(commit, proof, index, value_y)
+	print(f"Lagrange Interpolation for {len(values)} values")
+	print(f"Is evaluation correct? {int(value_y) == values[index]}")
+	print(f"Is pairing correct? {verif}")
+
+
 def testNewton(x_values, values, index):
 	kzg = KZG10()
 	start = time.thread_time()
@@ -589,7 +603,7 @@ def testSpline(x_values, values, index):
 	print(prf)
 	print(f"Cpu time: {end} secs")
 	print(f"Is evaluation correct? {int(y) == values[index]}")
-	print(f"Is pairing correct? {kzg.verify_off_chain(comt, prf, index, values[index])}")
+	print(f"Is pairing correct? {kzg.verify_off_chain(comt, prf, index, y)}")
 
 def testLinear(x_values, values, index):
 	kzg = KZG10()
@@ -622,12 +636,13 @@ if __name__ == "__main__":
 	#Prove()
 	#testRun()
 	#testMultiProof()
-	values = [randint(1,500) for i in range(500)]
+	values = [randint(1,500) for i in range(10)]
 	
 	x_values = [i for i in range(len(values))]
+	testLagrange(x_values, values, 3)
 	#testNewton(x_values, values, randint(0, len(values)-1))
 	testSpline(x_values, values, randint(0, len(values)-1))
-	testLinear(x_values, values, randint(0, len(values)-1))
+	#testLinear(x_values, values, randint(0, len(values)-1))
 
 
 def derp(n):
