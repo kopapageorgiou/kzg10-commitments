@@ -576,21 +576,30 @@ def testLagrange(x_values, values, index):
 
 def testNewton(x_values, values, index):
 	kzg = KZG10()
+	newton = kzg.choose_method("newton")
 	start = time.thread_time()
-	coeffs = kzg.generate_coeffs_for2(values)
-	#print("coeffs:", coeffs[0])
-	y = kzg.newton_poly2(coeffs[0], x_values, index)
+	coeffs = newton.interpolate(values)
+	print("coeffs:", coeffs)
+	y = newton.eval_poly_at(coeffs, index)
+	print("y:", y)
 	end = time.process_time() - start
 	print(f"Newton Interpolation for {len(values)} values")
 	print('-'*50)
+	commit = newton.generate_commitment(coeffs)
+	proof = newton.generate_proof(coeffs, index)
+	verification = newton.verify_off_chain(commit, proof, index, y)
 	print(f"Cpu time: {end} secs")
 	print(f"Is evaluation correct? {int(y) == values[index]}")
+	print(f"Is pairing correct? {verification}")
 	print('='*50)
 
 def testSpline(x_values, values, index):
 	kzg = KZG10()
 	start = time.process_time()
 	coeffs = kzg.cubic_spline_coefficients(x_values, values)
+	#coeffs2 = kzg.pre_coeffs(coeffs, index)
+	print("Values", values)
+	print("Coeffs", coeffs, len(coeffs))
 	y = kzg.evaluate_cubic_spline(coeffs, index)
 	#ofcomt = kzg.generate_commitment(coeffs)
 	comt = kzg.custom_commit(coeffs)
@@ -601,6 +610,7 @@ def testSpline(x_values, values, index):
 	#print(ofcomt)
 	print(comt)
 	print(prf)
+	print("Y", y)
 	print(f"Cpu time: {end} secs")
 	print(f"Is evaluation correct? {int(y) == values[index]}")
 	print(f"Is pairing correct? {kzg.verify_off_chain(comt, prf, index, y)}")
@@ -636,12 +646,12 @@ if __name__ == "__main__":
 	#Prove()
 	#testRun()
 	#testMultiProof()
-	values = [randint(1,500) for i in range(10)]
+	values = [randint(1,500) for i in range(5)]
 	
 	x_values = [i for i in range(len(values))]
-	testLagrange(x_values, values, 3)
-	#testNewton(x_values, values, randint(0, len(values)-1))
-	testSpline(x_values, values, randint(0, len(values)-1))
+	#testLagrange(x_values, values, 1)
+	testNewton(x_values, values, 2)
+	#testSpline(x_values, values, 0)
 	#testLinear(x_values, values, randint(0, len(values)-1))
 
 
