@@ -1,128 +1,51 @@
-#from finitefield import GF
-from numpy import array
-from typing import List, NamedTuple, Tuple, Union
-import json
-from functools import reduce
-from py_ecc.fields import bn128_FQ as FQ
-from py_ecc import bn128 as curve
-from py_ecc.typing import Field
-from random import randint
-
-class Field(object):
-    def __init__(self, value, modulus: int):
-        if isinstance(value, Field):
-            value = value.v
-        else:
-            value = value % modulus
-        self.v = value
-        self.m = modulus
-
-    def __eq__(self, other):
-        if isinstance(other, int):
-            return self.v == other % self.m
-        elif isinstance(other, Field):
-            return self.v == other.v and self.m == other.m
-        else:
-            raise ValueError(f'Cannot compare {self} with {other}')
-
-    def __int__(self):
-        return self.v
-
-    def __add__(self, other):
-        if isinstance(other, Field):
-            other = other.v
-        return Field(self.v + other, self.m)
-
-    def __neg__(self):
-        return Field(-self.v, self.m)
-
-    def __mul__(self, other):
-        if isinstance(other, Field):
-            other = other.v
-        return Field(self.v * other, self.m)
-
-    def __repr__(self):
-        return f"Field<{self.v}>"
-
-    def __sub__(self, other):
-        if isinstance(other, Field):
-            other = other.v
-        return Field(self.v - other, self.m)
-
-    def __truediv__(self, other):
-        return self * other.inverse()
-
-    def __pow__(self, other):
-        assert isinstance(other, int)
-        return Field(pow(self.v, other, self.m), self.m)
-
-    def inverse(self):
-        return Field(pow(self.v, self.m-2, self.m), self.m)
-
-    """def interp_poly(self, X, Y):
-        poly = [[]]
-        for j, y in enumerate(Y):
-            Xe = X[:j] + X[j+1:]
-            numer = reduce(lambda p, q: self.F(FQ(p))* self.F(FQ(q)), ([[1], K.sub([], x)] for x in Xe))
-            denom = reduce(lambda x, y: K.mul(x, y), (K.sub(X[j], x) for x in Xe))
-            poly = R.add(poly, R.mul(numer, [K.mul(y, K.inv(denom))]))
-        return poly"""
+from KZG10 import *
+import numpy as np
+import galois
+def divided_diff(kzg: KZG10, x, y):
+    n = len(y)
+    coef = [[kzg.F(0)] * n for _ in range(n)]
+    for i in range(n):
+        coef[i][0] = y[i]
     
-class GF(object):
-    def __init__(self, modulus: int):
-        self.m = modulus
+    for j in range(1, n):
+        for i in range(n - j):
+            coef[i][j] = (coef[i + 1][j - 1] - coef[i][j - 1]) / (x[i + j] - x[i])
 
-    def primitive_root(self, n: int):
-        """
-        Find a primitive n-th root of unity
-            - http://www.csd.uwo.ca/~moreno//AM583/Lectures/Newton2Hensel.html/node9.html
-            - https://crypto.stackexchange.com/questions/63614/finding-the-n-th-root-of-unity-in-a-finite-field
-        """
-        assert n >= 2
-        x = 2
-        while True:
-            # x != 0, g = x^(q-1/n)
-            # if g^(n/2) != 1, then it is a primitive n-th root
-            g = pow(int(x), (self.m-1)//n, self.m)
-            if pow(g, n//2, self.m) != 1:
-                return self(g)
-            x += 1
+    return coef
 
-    def random(self):
-        return self(randint(0, self.m-1))
 
-    def __call__(self, value) -> Field:
-        return Field(value, self.m)
-    
-# Define the finite field (in this case, GF(2^8))
-F = GF(curve.curve_order)
+kzg = KZG10(43)
 
-# Define the data points
-data_points = [(F(1), F(3)), (F(2), F(7)), (F(3), F(11)), (F(4), F(15)), (F(5), F(19))]
+newton = kzg.choose_method(KZG10.NEWTON)
 
-# Function to compute the Lagrange basis polynomial
-def lagrange_basis_polynomial(x, i, data_points):
-    numerator = F(1)
-    denominator = F(1)
-    for j, (xj, yj) in enumerate(data_points):
-        if j == i:
-            continue
-        numerator *= x - xj
-        denominator *= data_points[i][0] - xj
-    return numerator / denominator
+x1 = [0, 1, 2, 3]
+y1 = [1, 3, 5, 9]
+x2 = (0, 1, 2, 3)
+y2 = (1, 3, 5, 9)
+x = [kzg.F(i) for i in x1]
+y = [kzg.F(i) for i in y1]
+x1 = np.array(x)
+y1 = np.array(y)
+coeffs = newton.interpolate(y)
+print(coeffs)
+proof = newton.generate_proof(coeffs, 1)
+coeffs = [29, 0, 2, 1]
+GF = galois.GF(43)
+f = galois.Poly([int(d) for d in coeffs], field=GF)
+print("f=", f)
+yPoly = galois.Poly([3], field=GF)
+fmy = f - yPoly
+print("fmy=", fmy)
+xPoly = galois.Poly([1, 0], field=GF)
+print("x=", xPoly)
+xvalPoly = galois.Poly([1], galois.GF(43))
+xmxval = xPoly - xvalPoly
+print("xmxval=", xmxval)
+#g = galois.Poly([-1, 1], field=GF)
+divFG = fmy // xmxval
+coeffs = divFG.coeffs
+print(divFG)
+print(coeffs)
 
-# Function to compute the Lagrange polynomial
-def lagrange_polynomial(x, data_points):
-    y = F(0)
-    for i, (xi, yi) in enumerate(data_points):
-        y += yi * lagrange_basis_polynomial(x, i, data_points)
-    return y
 
-# Compute the coefficients of the polynomial
-x_values = [F(x) for x in range(6)]
-A = array([[x**i for i in range(len(data_points))] for x in x_values])
-b = array([lagrange_polynomial(x, data_points) for x in x_values])
-print(b)
-coefficients = array(F.inverse(A).dot(b), dtype=int)
 
-print(coefficients)
