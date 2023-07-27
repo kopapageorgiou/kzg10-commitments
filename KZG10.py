@@ -788,6 +788,50 @@ class LaGrange(KZG10):
         #print("Res", res)
         return res
 
+class Monomial(KZG10):
+    def __init__(self, field=cu.curve_order) -> None:
+        self.field = field
+        self.F = GF(field)
+    
+    def interpolate(self, values: List[int]):
+        x_values = [self.F(x) for x in range(len(values))]
+        y_values = [self.F(y) for y in values]
+
+        n = len(x_values)
+
+        # Create the Vandermonde matrix
+        A = []
+        for i in range(n):
+            row = [x_values[i]**j for j in range(n)]
+            A.append(row)
+
+        # Solve the system of equations to obtain coefficients
+        coefficients = self.solve_system(A, y_values)
+
+        return coefficients
+    
+    def solve_system(self, A, b):
+        n = len(A)
+        
+        # Forward elimination (Gaussian elimination)
+        for i in range(n):
+            pivot = A[i][i]
+            for j in range(i + 1, n):
+                factor = A[j][i] / pivot
+                for k in range(i, n):
+                    A[j][k] -= factor * A[i][k]
+                b[j] -= factor * b[i]
+
+        # Backward substitution
+        x = [0] * n
+        for i in range(n - 1, -1, -1):
+            x[i] = b[i]
+            for j in range(i + 1, n):
+                x[i] -= A[i][j] * x[j]
+            x[i] /= A[i][i]
+
+        return x
+    
     
 
 if __name__ == "__main__":
