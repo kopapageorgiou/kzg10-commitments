@@ -158,15 +158,15 @@ class KZG10(object):
         return self.generate_commitment(quotientCoefficients)
 
     def _customgenQuotientPolynomial(self, coefficients: List[Field], xVal: int):
-        yVal = self.evaluate_cubic_spline(coefficients, xVal)
+        yVal = self.evaluate_spline_point(coefficients, xVal)
         
-        segment_coefficients = self.pre_coeffs(coefficients, xVal)
+        #segment_coefficients = self.pre_coeffs(coefficients, xVal)
 
         #yVal = self.evaluate_cubic_spline_seg(segment_coefficients, xVal)
         print("Y-val quot:", yVal)
         x = [self.F(0), self.F(1)]
         #print("Segment_coefficients:", segment_coefficients)
-        res = self._divPoly(self._subPoly(segment_coefficients, [yVal]), self._subPoly(x, [xVal]))[0] # type: ignore
+        res = self._divPoly(self._subPoly(coefficients, [yVal]), self._subPoly(x, [xVal]))[0] # type: ignore
         print("Res", res)
         return res
     def pre_coeffs(self, coeffs, xVal):
@@ -421,8 +421,68 @@ class KZG10(object):
             coeffs.append(b[i])
             coeffs.append(c[i])
             coeffs.append(d[i])
-
         return coeffs
+    
+    def generate_spline_monomial_coeffs(self, x, y):
+        coeffs = self.cubic_spline_coefficients(x, y)
+        num_segments = len(x) - 1
+
+        monomial_coeffs = []
+        for i in range(num_segments):
+            y_i, b_i, c_i, d_i = coeffs[i * 4 : (i + 1) * 4]
+
+            # Generate the monomial coefficients for the cubic polynomial on this segment
+            monomial_coeffs.append(y_i)
+            monomial_coeffs.append(b_i)
+            monomial_coeffs.append(c_i / self.F(2))
+            monomial_coeffs.append(d_i / self.F(3))
+
+        return monomial_coeffs
+
+    def evaluate_spline_point(self, monomial_coeffs, xVal):
+        n = len(monomial_coeffs) // 4  # Number of segments in the spline
+        x = [i for i in range(n)]
+        num_segments = len(x) - 1
+
+        # Find the segment index that contains xVal
+        segment_index = 0
+        for i in range(num_segments):
+            if x[i] <= xVal <= x[i + 1]:
+                segment_index = i
+                break
+        #xVal = self.F(xVal)
+        #x = [self.F(xv) for xv in x]
+        # Extract the monomial coefficients for the segment
+        a, b, c, d = monomial_coeffs[segment_index * 4 : (segment_index + 1) * 4]
+        x_i = x[segment_index]
+
+        # Evaluate the cubic polynomial at xVal
+        dx = xVal - x_i
+        result = a + b * dx + (c * self.F(2)) * dx**2 + (d * self.F(3)) * dx**3
+
+        return result
+    
+    def generate_spline_polynomial(self, x, y):
+        monomial_coeffs = self.generate_spline_monomial_coeffs(x, y)
+        num_segments = len(x) - 1
+
+        # Initialize the polynomial coefficients
+        poly_coeffs = [self.F(0)] * (len(x)*4)
+
+        # Combine the monomial coefficients for each segment to form the polynomial
+        for i in range(num_segments):
+            a, b, c, d = monomial_coeffs[i * 4 : (i + 1) * 4]
+
+            # Accumulate the contributions from each segment
+            poly_coeffs[i] += a
+            poly_coeffs[i + 1] += b
+            poly_coeffs[i + 2] += c / self.F(2)
+            poly_coeffs[i + 3] += d / self.F(3)
+
+        # The resulting poly_coeffs list now represents the polynomial
+        return poly_coeffs[:len(x)]
+
+
 
 
     def evaluate_cubic_spline_seg(self, coeffs, x):
@@ -480,7 +540,65 @@ class KZG10(object):
         #print(type(h), type(t))
         return a + b*t + c*t**2 + d*t**3
     
-    
+    def b_spline_interpolation(self, x_data, y_data, degree):
+        n = len(x_data)
+        m = n + degree + 1
+
+        # Calculate the knot vector (using chord-length knots in this case)
+        t = [self.F(0)] * m
+        for i in range(1, m):
+            t[i] = t[i - 1] + ((self.F(x_data[n - 1]) - self.F(x_data[0])) / (self.F(m) - self.F(1)))
+
+        # Set up the linear system
+        A = [[self.F(0)] * n for _ in range(n)]
+        for i in range(n):
+            for j in range(n):
+                A[i][j] = self.basis_function(t, j, degree, x_data[i])
+
+        # Solve the linear system
+        coefficients = self.gauss_elimination(A, y_data)
+
+        return coefficients
+
+    def basis_function(self, t, i, k, x):
+        if k == 0:
+            return self.F(1) if int(t[i]) <= x < int(t[i + 1]) else self.F(0)
+
+        if t[i + k] == t[i]:
+            c1 = self.F(0)
+        else:
+            c1 = (self.F(x) - t[i]) / (t[i + k] - t[i]) * self.basis_function(t, i, k - 1, x)
+
+        if t[i + k + 1] == t[i + 1]:
+            c2 = self.F(0)
+        else:
+            c2 = (t[i + k + 1] - self.F(x)) / (t[i + k + 1] - t[i + 1]) * self.basis_function(t, i + 1, k - 1, x)
+
+        return c1 + c2
+
+
+    def gauss_elimination(self, A, b):
+        n = len(A)
+        b = [self.F(v) for v in b]
+        # Forward elimination
+        for i in range(n):
+            pivot = A[i][i]
+            for j in range(i + 1, n):
+                factor = A[j][i] / pivot
+                for k in range(i, n):
+                    A[j][k] -= factor * A[i][k]
+                b[j] -= factor * b[i]
+
+        # Backward substitution
+        x = [self.F(0)] * n
+        for i in range(n - 1, -1, -1):
+            x[i] = b[i]
+            for j in range(i + 1, n):
+                x[i] -= A[i][j] * x[j]
+            x[i] /= A[i][i]
+
+        return x
+
 
     def linear_inter_evaluation(self, coeffs, x_data, index):
         x_data = [self.F(x) for x in x_data]

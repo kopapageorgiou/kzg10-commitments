@@ -606,13 +606,13 @@ def testNewton(values, index):
 def testSpline(x_values, values, index):
 	kzg = KZG10()
 	start = time.process_time()
-	coeffs = kzg.cubic_spline_coefficients(x_values, values)
+	coeffs = kzg.b_spline_interpolation(x_values, values,0)
 	#coeffs2 = kzg.pre_coeffs(coeffs, index)
 	print("Values", values)
 	print("Coeffs", coeffs, len(coeffs))
-	y = kzg.evaluate_cubic_spline(coeffs, index)
+	y = kzg.evaluate_spline_point(coeffs, index)
 	#ofcomt = kzg.generate_commitment(coeffs)
-	comt = kzg.custom_commit(coeffs)
+	comt = kzg.generate_commitment(coeffs)
 	prf = kzg.custom_generate_proof(coeffs, index)
 	end = time.process_time() - start
 	print(f"Cubic Spline Interpolation for {len(values)} values")
@@ -659,9 +659,9 @@ if __name__ == "__main__":
 	values = [randint(1,500) for i in range(5)]
 	
 	x_values = [i for i in range(len(values))]
-	testLagrange(x_values, values, 1)
-	testNewton(values, 1)
-	#testSpline(x_values, values, 0)
+	#testLagrange(x_values, values, 1)
+	#testNewton(values, 1)
+	testSpline(x_values, values, 1)
 	#testLinear(x_values, values, randint(0, len(values)-1))
 
 
