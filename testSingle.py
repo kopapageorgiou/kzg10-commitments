@@ -563,32 +563,42 @@ def testRun():
 
 def testLagrange(x_values, values, index):
 	kzg = KZG10()
-	coeffs = kzg.generate_coeffs_for(values)
-	print (f"coeffs {coeffs}")
-	value_y = kzg.evalPolyAt(coeffs, index)	
-	commit = kzg.generate_commitment(coeffs)
-	proof = kzg.generate_proof(coeffs, index)
+	lagrange = kzg.choose_method(KZG10.LAGRANGE)
+	start = time.process_time()
+	coeffs = lagrange.interpolate(values)
+	#print (f"coeffs {coeffs}")
+	
+	#print("y:", value_y)
+	commit = lagrange.generate_commitment(coeffs)
+	end = time.process_time() - start
+	proof = lagrange.generate_proof(coeffs, index)
+	value_y = lagrange.eval_poly_at(coeffs, index)	
 	verif = kzg.verify_off_chain(commit, proof, index, value_y)
 	print(f"Lagrange Interpolation for {len(values)} values")
+	print('-'*50)
+	print(f"Cpu time for commitment generation: {end} secs")
 	print(f"Is evaluation correct? {int(value_y) == values[index]}")
 	print(f"Is pairing correct? {verif}")
+	print('='*50)
 
 
-def testNewton(x_values, values, index):
+def testNewton(values, index):
 	kzg = KZG10()
-	newton = kzg.choose_method("newton")
-	start = time.thread_time()
+	newton = kzg.choose_method(KZG10.NEWTON)
+	#print("values=",values)
+	start = time.process_time()
 	coeffs = newton.interpolate(values)
-	print("coeffs:", coeffs)
-	y = newton.eval_poly_at(coeffs, index)
-	print("y:", y)
+	#print("coeffs:", coeffs)
+	
+	#print("y:", y)
+	commit = newton.generate_commitment(coeffs)
 	end = time.process_time() - start
+	proof = newton.generate_proof(coeffs, index)
+	y = newton.eval_poly_at(coeffs, index)
+	verification = kzg.verify_off_chain(commit, proof, index, y)
 	print(f"Newton Interpolation for {len(values)} values")
 	print('-'*50)
-	commit = newton.generate_commitment(coeffs)
-	proof = newton.generate_proof(coeffs, index)
-	verification = newton.verify_off_chain(commit, proof, index, y)
-	print(f"Cpu time: {end} secs")
+	print(f"Cpu time for commitment generation: {end} secs")
 	print(f"Is evaluation correct? {int(y) == values[index]}")
 	print(f"Is pairing correct? {verification}")
 	print('='*50)
@@ -649,8 +659,8 @@ if __name__ == "__main__":
 	values = [randint(1,500) for i in range(5)]
 	
 	x_values = [i for i in range(len(values))]
-	#testLagrange(x_values, values, 1)
-	testNewton(x_values, values, 2)
+	testLagrange(x_values, values, 1)
+	testNewton(values, 1)
 	#testSpline(x_values, values, 0)
 	#testLinear(x_values, values, randint(0, len(values)-1))
 

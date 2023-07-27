@@ -7,7 +7,7 @@ from py_ecc.fields import bn128_FQ12 as FQ12
 from py_ecc.bn128 import bn128_pairing as curvePairing
 from py_ecc import bn128 as curve
 from py_ecc.bn128 import bn128_curve as cu
-from py_ecc.bn128.bn128_curve import G2
+from py_ecc.bn128.bn128_curve import G2, G1
 from py_ecc.typing import Field
 from random import randint
 import numpy as np
@@ -24,8 +24,10 @@ SRS_G2_1 = (FQ2([
                 0x204b66d8e1fadc307c35187a6b813be0b46ba1cd720cd1c4ee5f68d13036b4ba
                 
             ]))
-
 class KZG10(object):
+
+    NEWTON = "newton"
+    LAGRANGE = "lagrange"
 
     def __init__(self, field = cu.curve_order) -> None:
         """
@@ -51,8 +53,10 @@ class KZG10(object):
         self.F = GF(field)
 
     def choose_method(self, method: str):
-        if method == "newton":
-            return Newton()
+        if method == self.NEWTON:
+            return Newton(self.field)
+        elif method == self.LAGRANGE:
+            return LaGrange(self.field)
         
     def evalPolyAt(self, coefficients: List[Field], index: Field):
         result = self.F(0)
@@ -140,9 +144,9 @@ class KZG10(object):
 
     def _genQuotientPolynomial(self, coefficients: List[Field], xVal: Field):
         yVal = self.evalPolyAt(coefficients, xVal)
+        print("Y-val quot:", yVal)
         x = [self.F(0), self.F(1)]
         res = self._divPoly(self._subPoly(coefficients, [yVal]), self._subPoly(x, [xVal]))[0]
-        print("Res", res)
         return res
     
     def get_index_x(self, index: int):
@@ -226,6 +230,42 @@ class KZG10(object):
             del remainder[-1]
         return quotient, remainder
     
+    def _mulPoly(self, poly1, poly2):
+        # Determine the degrees of the input polynomials
+        degree1 = len(poly1) - 1
+        degree2 = len(poly2) - 1
+
+        # Determine the degree of the resulting polynomial
+        result_degree = degree1 + degree2
+
+        # Initialize the result polynomial with zeros
+        result_poly = [self.F(0)] * (result_degree + 1)
+
+        # Perform polynomial multiplication
+        for i in range(degree1 + 1):
+            for j in range(degree2 + 1):
+                result_poly[i + j] += poly1[i] * poly2[j]
+
+        return result_poly
+    
+    def div_polys(self, a, b):
+        """
+        Long polynomial difivion for two polynomials in coefficient form
+        """
+        a = [x for x in a]
+        o = []
+        apos = len(a) - 1
+        bpos = len(b) - 1
+        diff = apos - bpos
+        while diff >= 0:
+            quot = a[apos] / self.F(b[bpos])
+            o.insert(0, quot)
+            for i in range(bpos, -1, -1):
+                a[diff + i] -= self.F(b[i]) * quot
+            apos -= 1
+            diff -= 1
+        return o
+
     def _mulPoly(self, poly1, poly2):
     # Initialize an output polynomial with all coefficients set to zero
         output_poly = [self.F(0)] * (len(poly1) + len(poly2) - 1)
@@ -337,10 +377,14 @@ class KZG10(object):
         commitmentMinusA = cu.add(commitment, cu.neg(cu.multiply(cu.G1, int(value))))
         negProof = cu.neg(proof)
         indexMulProof = cu.multiply(proof, int(index))
+        #print("here",indexMulProof)
         #return [commitmentMinusA, negProof, indexMulProof]
         a = curvePairing.pairing(G2, cu.add(indexMulProof, commitmentMinusA))
         b = curvePairing.pairing(SRS_G2_1, negProof)
         ab = a*b
+        #print(a)
+        #print(b)
+        #print("ab", ab)
         return ab == FQ12.one()
     
     def cubic_spline_coefficients(self, x, y):
@@ -651,6 +695,7 @@ def main():
     proof = kzg.generate_proof(coeffs, x)
     kzg.verify_off_chain(commit, proof, x, y)
 
+#** Currently Working
 class Newton(KZG10):
     def __init__(self, field=cu.curve_order) -> None:
         self.field = field
@@ -662,39 +707,86 @@ class Newton(KZG10):
         for x, y in enumerate(values):
             x_values.append(x)
             val.append(y)
+        x_values = [self.F(x) for x in x_values]
         pol = super().divided_diff([self.F(x) for x in x_values], [self.F(y) for y in val])[0]
-        return pol
+        newton = []
+        for ck, xk in zip(pol[::-1], x_values[::-1]):
+            newton = super()._addPoly(super()._mulPoly(newton, [-xk, self.F(1)]), [ck])
+        #print(newton)
+        return newton
     
-    def eval_poly_at(self, coef, x):
-        x_data = [i for i in range(len(coef))]
-        n = len(x_data) - 1
-        p = coef[n]
-
-        for k in range(1, n+1):
-            p = coef[n-k] + (self.F(x)-self.F(x_data[n-k]))*p
-            
-        return p
+    def eval_poly_at(self, coeffs: List[Field], index: Field):
+        result = self.F(0)
+        for i, coeff in enumerate(coeffs):
+            result += coeff * (index ** i)
+        return result
 
     def generate_commitment(self, coefficients):
-        return super().custom_commit(coefficients)
+        return super().generate_commitment(coefficients)
     
     def generate_proof(self, coefficients: List[Field], index: Field):
-        quotientCoefficients = self._customgenQuotientPolynomial(coefficients, index)
+        quotientCoefficients = self._generate_quotient_polynomial(coefficients, index)
         #print("here", quotientCoefficients)
-        return super().custom_commit(quotientCoefficients)
+        return super().generate_commitment(quotientCoefficients)
 
-    def _customgenQuotientPolynomial(self, coefficients: List[Field], xVal: int):
-        yVal = self.eval_newton_poly_at(coefficients, xVal)
-        
-        print("Y-val quot:", yVal)
+    def _generate_quotient_polynomial(self, coefficients: List[Field], xVal: Field):
+        yVal = self.eval_poly_at(coefficients, xVal)
+        #print(xVal)
+        #print("Y-val quot:", yVal)
         x = [self.F(0), self.F(1)]
+        #print(super().div_polys(coefficients, [-xVal, 1]))
         res = super()._divPoly(super()._subPoly(coefficients, [yVal]), super()._subPoly(x, [xVal]))[0] # type: ignore
-        print("Res", res)
+        #print("Res", res)
         return res
+
+
+#** Currently working
+class LaGrange(KZG10):
+    def __init__(self, field=cu.curve_order) -> None:
+        self.field = field
+        self.F = GF(field)
+
+    def interpolate(self, values: List[int]):
+        x_values = [self.F(x) for x in range(len(values))]
+        y_values = [self.F(y) for y in values]
+
+        pol = [self.F(0)]
+        k = len(x_values)
+        for j in range(k):
+            lj = [y_values[j]]
+            for m in range(k):
+                if m == j:
+                    continue
+                ljm = super()._mulPoly([1, - x_values[m]], [super()._RECIPROCAL(int(x_values[j] - x_values[m]))])
+                lj = super()._mulPoly(lj, ljm)
+            pol = self._addPoly(pol, lj)
+        return _swap(pol)
     
-    def verify_off_chain(self, commitment, proof, index, value):
-        return super().verify_off_chain(commitment, proof, index, value)
+    def eval_poly_at(self, coefficients: List[Field], index: Field):
+        result = self.F(0)
+        power_of_x = self.F(1)
+
+        for coeff in coefficients:
+            result = (result + (power_of_x * coeff))
+            power_of_x = (power_of_x * index)
+
+        return result
     
+    def generate_commitment(self, coefficients):
+        return super().generate_commitment(coefficients)
+    
+    def generate_proof(self, coefficients: List[Field], index: Field):
+        quotientCoefficients = self._generate_quotient_polynomial(coefficients, index)
+        #print("here", quotientCoefficients)
+        return super().generate_commitment(quotientCoefficients)
+    
+    def _generate_quotient_polynomial(self, coefficients: List[Field], xVal: Field):
+        yVal = self.eval_poly_at(coefficients, xVal)
+        #print("Y-val quot:", yVal)
+        x = [self.F(0), self.F(1)]
+        res = super()._divPoly(super()._subPoly(coefficients, [yVal]), super()._subPoly(x, [xVal]))[0]
+        #print("Res", res)
+        return res
 
     
 
