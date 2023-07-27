@@ -581,6 +581,25 @@ def testLagrange(x_values, values, index):
 	print(f"Is pairing correct? {verif}")
 	print('='*50)
 
+def testMonomial(x_values, values, index):
+	kzg = KZG10()
+	monomial = kzg.choose_method(KZG10.MONOMIAL)
+	start = time.process_time()
+	coeffs = monomial.interpolate(values)
+	print (f"coeffs {coeffs}")
+	
+	#print("y:", value_y)
+	commit = monomial.generate_commitment(coeffs)
+	end = time.process_time() - start
+	proof = monomial.generate_proof(coeffs, index)
+	value_y = monomial.eval_poly_at(coeffs, index)	
+	verif = kzg.verify_off_chain(commit, proof, index, value_y)
+	print(f"Monomial Interpolation for {len(values)} values")
+	print('-'*50)
+	print(f"Cpu time for commitment generation: {end} secs")
+	print(f"Is evaluation correct? {int(value_y) == values[index]}")
+	print(f"Is pairing correct? {verif}")
+	print('='*50)
 
 def testNewton(values, index):
 	kzg = KZG10()
@@ -588,7 +607,7 @@ def testNewton(values, index):
 	#print("values=",values)
 	start = time.process_time()
 	coeffs = newton.interpolate(values)
-	#print("coeffs:", coeffs)
+	print("coeffs:", coeffs)
 	
 	#print("y:", y)
 	commit = newton.generate_commitment(coeffs)
@@ -660,8 +679,9 @@ if __name__ == "__main__":
 	
 	x_values = [i for i in range(len(values))]
 	#testLagrange(x_values, values, 1)
-	#testNewton(values, 1)
-	testSpline(x_values, values, 1)
+	testNewton(values, 1)
+	#testSpline(x_values, values, 1)
+	testMonomial(x_values, values, 1)
 	#testLinear(x_values, values, randint(0, len(values)-1))
 
 

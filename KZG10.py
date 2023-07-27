@@ -28,6 +28,7 @@ class KZG10(object):
 
     NEWTON = "newton"
     LAGRANGE = "lagrange"
+    MONOMIAL = "monomial"
 
     def __init__(self, field = cu.curve_order) -> None:
         """
@@ -57,6 +58,8 @@ class KZG10(object):
             return Newton(self.field)
         elif method == self.LAGRANGE:
             return LaGrange(self.field)
+        elif method == self.MONOMIAL:
+            return Monomial(self.field)
         
     def evalPolyAt(self, coefficients: List[Field], index: Field):
         result = self.F(0)
@@ -949,6 +952,34 @@ class Monomial(KZG10):
             x[i] /= A[i][i]
 
         return x
+    
+    def eval_poly_at(self, coefficients, x):
+        # Check if coefficients is a list (for compatibility with solve_system)
+        if not isinstance(coefficients, list):
+            coefficients = [coefficients]
+
+        # Evaluate the polynomial at the given point x
+        result = self.F(0)
+        for i, c in enumerate(coefficients):
+            result += c * (self.F(x) ** i)
+
+        return result
+    
+    def generate_commitment(self, coefficients):
+        super().generate_commitment(coefficients)
+
+    def generate_proof(self, coefficients: List[Field], index: Field):
+        quotientCoefficients = self._generate_quotient_polynomial(coefficients, index)
+        #print("here", quotientCoefficients)
+        return super().generate_commitment(quotientCoefficients)
+    
+    def _generate_quotient_polynomial(self, coefficients: List[Field], xVal: Field):
+        yVal = self.eval_poly_at(coefficients, xVal)
+        #print("Y-val quot:", yVal)
+        x = [self.F(0), self.F(1)]
+        res = super()._divPoly(super()._subPoly(coefficients, [yVal]), super()._subPoly(x, [xVal]))[0]
+        #print("Res", res)
+        return res
     
     
 
