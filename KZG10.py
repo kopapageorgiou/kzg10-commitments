@@ -172,6 +172,7 @@ class KZG10(object):
         res = self._divPoly(self._subPoly(coefficients, [yVal]), self._subPoly(x, [xVal]))[0] # type: ignore
         print("Res", res)
         return res
+    
     def pre_coeffs(self, coeffs, xVal):
         n = len(coeffs)
         x_data = [i for i in range(n)]
@@ -953,35 +954,30 @@ class Monomial(KZG10):
 
         return x
     
-    def eval_poly_at(self, coefficients, x):
-        # Check if coefficients is a list (for compatibility with solve_system)
-        if not isinstance(coefficients, list):
-            coefficients = [coefficients]
+    def generate_commitment(self, coefficients):
+        return super().generate_commitment(coefficients)
+    
 
-        # Evaluate the polynomial at the given point x
+    def eval_monomial_at(self, coefficients, index):
         result = self.F(0)
-        for i, c in enumerate(coefficients):
-            result += c * (self.F(x) ** i)
+        power_of_x = self.F(1)
+
+        for coeff in coefficients:
+            result += power_of_x * coeff
+            power_of_x *= index
 
         return result
     
-    def generate_commitment(self, coefficients):
-        super().generate_commitment(coefficients)
+    def generate_proof(self, coefficients, index):
+        quotient_coefficients = self._generate_quotient_polynomial(coefficients, index)
+        return self.generate_commitment(quotient_coefficients)
 
-    def generate_proof(self, coefficients: List[Field], index: Field):
-        quotientCoefficients = self._generate_quotient_polynomial(coefficients, index)
-        #print("here", quotientCoefficients)
-        return super().generate_commitment(quotientCoefficients)
-    
-    def _generate_quotient_polynomial(self, coefficients: List[Field], xVal: Field):
-        yVal = self.eval_poly_at(coefficients, xVal)
-        #print("Y-val quot:", yVal)
+    def _generate_quotient_polynomial(self, coefficients, x_val):
+        y_val = self.eval_monomial_at(coefficients, x_val)
         x = [self.F(0), self.F(1)]
         res = super()._divPoly(super()._subPoly(coefficients, [yVal]), super()._subPoly(x, [xVal]))[0]
         print("Res", res)
         return res
-    
-    
 
 if __name__ == "__main__":
     main()
