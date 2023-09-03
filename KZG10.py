@@ -857,7 +857,7 @@ class Newton(KZG10):
         x = [self.F(0), self.F(1)]
         #print(super().div_polys(coefficients, [-xVal, 1]))
         res = super()._divPoly(super()._subPoly(coefficients, [yVal]), super()._subPoly(x, [xVal]))[0] # type: ignore
-        #print("Res", res)
+        print("Res", res)
         return res
 
 
@@ -906,7 +906,7 @@ class LaGrange(KZG10):
         #print("Y-val quot:", yVal)
         x = [self.F(0), self.F(1)]
         res = super()._divPoly(super()._subPoly(coefficients, [yVal]), super()._subPoly(x, [xVal]))[0]
-        #print("Res", res)
+        print("Res", res)
         return res
 
 class Monomial(KZG10):
@@ -978,7 +978,7 @@ class Monomial(KZG10):
         #print("Y-val quot:", yVal)
         x = [self.F(0), self.F(1)]
         res = super()._divPoly(super()._subPoly(coefficients, [yVal]), super()._subPoly(x, [xVal]))[0]
-        #print("Res", res)
+        print("Res", res)
         return res
     
     
