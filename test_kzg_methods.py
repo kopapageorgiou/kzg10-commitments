@@ -87,8 +87,8 @@ def test_single_proof_newtons():
 	# print('='*50)
 
 def test_multi_proof_newtons_with_correct_indices():
-	values = [randint(1,50) for _ in range(10)]
-	indices = [0,1,2,3]
+	values = [10, 10, 10, 10, 10, 11, 10]
+	indices = [1,2,3,4]
 	kzg = KZG10()
 	smartContract = SmartContract()
 	newton = kzg.choose_method(KZG10.NEWTON)
@@ -216,6 +216,16 @@ def testMonomial(x_values, values, index):
 
 
 if __name__ == "__main__":
+	pass
+	# values = [10, 10, 10, 10, 10, 10, 10]
+	# #indices = [0,1,2,3]
+	# kzg = KZG10()
+	# #smartContract = SmartContract()
+	# newton = kzg.choose_method(KZG10.NEWTON)
+	# coeffs = newton.interpolate(values)
+	# print("coeffs: ", coeffs)
+	# commitment = newton.generate_commitment(coeffs)
+	# print("commitment: ", commitment)
 	#testRun()
 	#testMultiProof()
 	#values = [randint(1,50) for i in range(10)]
@@ -227,6 +237,6 @@ if __name__ == "__main__":
 	#testNewton(values,2)
 	#testMonomial(x_values,values, 2)
 	#testMultiProofNewton(x_values,values, [0,1,2,3])
-	test_multi_proof_newtons_with_incorrect_indices_in_proof()
+	#test_multi_proof_newtons_with_incorrect_indices_in_proof()
 	#testSpline(x_values, values, 0)
 	#testLinear(x_values, values, randint(0, len(values)-1))
