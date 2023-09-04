@@ -351,11 +351,14 @@ class KZG10(object):
     def _genZeroPoly(self, indices: List[Field]):
         zPoly = [self.F(-1) * indices[0], self.F(1)]
         #print(zPoly)
-        for indice in indices:
-            zPoly = self._mulPoly(zPoly, [self.F(-1) * indice, self.F(1)])
-            #print(zPoly[1:])
+        for i in range(1, len(indices)):
+            zPoly = self._mulPoly(zPoly, [self.F(-1) * indices[i], self.F(1)])
+            #print(zPoly)
+        # for indice in indices:
+        #     zPoly = self._mulPoly(zPoly, [self.F(-1) * indice, self.F(1)])
+        #     #print(zPoly[1:])
 
-        return zPoly[1:]
+        return zPoly
 
 
 
@@ -876,7 +879,7 @@ class Newton(KZG10):
         ipoly = self._genInterpolatingPoly(poly, indices)
         #print(ipoly)
         zpoly = self._genZeroPoly(indices)
-        #print(zpoly)
+        print(zpoly)
         qPoly = self._divPoly(self._subPoly(poly, ipoly), zpoly)
         #print(qPoly)
         multiproof = self._polyCommit(qPoly[0])
