@@ -1,7 +1,6 @@
 from py_ecc.bn128.bn128_curve import multiply, G1, G2, add
 from py_ecc.bls import G2ProofOfPossession as bls_pop
 from py_ecc.bn128 import pairing
-from eth_abi import encode_abi
 import os
 from web3 import Web3
 #from smartContractInteraction import smartContractInteraction
