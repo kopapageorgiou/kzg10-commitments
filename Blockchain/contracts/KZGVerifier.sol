@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 
 import "./Pairing.sol";
 import { Constants } from "./Constants.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/utils/Strings.sol";
 
 contract Verifier is Constants {
 
