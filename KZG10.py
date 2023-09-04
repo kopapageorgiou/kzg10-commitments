@@ -10,7 +10,6 @@ from py_ecc.bn128 import bn128_curve as cu
 from py_ecc.bn128.bn128_curve import G2, G1
 from py_ecc.typing import Field
 from random import randint
-import numpy as np
 
 G1_POINTS = []
 G2_POINTS = []
@@ -335,6 +334,7 @@ class KZG10(object):
         qPoly = self._divPoly(self._subPoly(poly, ipoly), zpoly)
         #print(qPoly)
         multiproof = self._polyCommit(qPoly[0])
+        print(multiproof)
         iCoeffs = _swap(self._lagrange_inter(indices, values))
         #print("here",iCoeffs)
         #print(ipoly)
@@ -776,6 +776,7 @@ def format_FQ_G1Point(data: Tuple[Field, Field]):
 
 def format_proof(data):
     p1, p2 = data
+    print(p1, p2)
     x1, x2 = p1.coeffs
     y1, y2 = p2.coeffs
     return ([int(x2),int(x1)],[int(y2),int(y1)])
@@ -823,17 +824,24 @@ class Newton(KZG10):
         self.field = field
         self.F = GF(field)
     
-    def interpolate(self, values: List[int]):
+    def interpolate(self, values: List[int], indices: List[int] = None):
         x_values = []
         val = []
-        for x, y in enumerate(values):
-            x_values.append(x)
-            val.append(y)
+        if indices is None:
+            for x, y in enumerate(values):
+                x_values.append(x)
+                val.append(y)
+        else:
+            x_values = indices
+            val = values
         x_values = [self.F(x) for x in x_values]
         pol = super().divided_diff([self.F(x) for x in x_values], [self.F(y) for y in val])[0]
         newton = []
+        k = 0
         for ck, xk in zip(pol[::-1], x_values[::-1]):
+            print(k)
             newton = super()._addPoly(super()._mulPoly(newton, [-xk, self.F(1)]), [ck])
+            k+=1
         #print(newton)
         return newton
     
@@ -858,8 +866,39 @@ class Newton(KZG10):
         x = [self.F(0), self.F(1)]
         #print(super().div_polys(coefficients, [-xVal, 1]))
         res = super()._divPoly(super()._subPoly(coefficients, [yVal]), super()._subPoly(x, [xVal]))[0] # type: ignore
-        print("Res", res)
+        #print("Res", res)
         return res
+    
+    def generate_multi_proof(self, coefficients: List[Field], indices: List[int], values: List[int]):
+        indices = [self.F(indice) for indice in indices]
+        values = [self.F(value) for value in values]
+        poly = coefficients
+        ipoly = self._genInterpolatingPoly(poly, indices)
+        #print(ipoly)
+        zpoly = self._genZeroPoly(indices)
+        #print(zpoly)
+        qPoly = self._divPoly(self._subPoly(poly, ipoly), zpoly)
+        #print(qPoly)
+        multiproof = self._polyCommit(qPoly[0])
+        #print(multiproof)
+        #iCoeffs = _swap(self._lagrange_inter(indices, values))
+        iCoeffs = self.interpolate(values, indices) #? Should swap?
+        #print("here",iCoeffs)
+        #print(ipoly)
+        return multiproof, iCoeffs, zpoly
+    
+    def _genInterpolatingPoly(self, poly: List[Field], indices: List[Field]):
+        x = []
+        values = []
+        
+        for indice in indices:
+            values.append(self.eval_poly_at(poly, indice))
+            x.append(indice)
+        
+        #coeffs = _swap(self._lagrange_inter(x, values))
+        coeffs = self.interpolate(values, x) #? Should swap?
+        #print(self.evalPolyAt(coeffs, self.F(4)))
+        return coeffs
 
 
 #** Currently working
