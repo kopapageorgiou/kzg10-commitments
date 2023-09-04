@@ -1,8 +1,0 @@
-dependencies:
-  - OpenZeppelin/openzeppelin-contracts@4.8.0
-
-compiler:
-  solc:
-    remappings:
-      #- '@openzeppelin=/home/papas/.brownie/packages/OpenZeppelin/openzeppelin-contracts@4.8.1'     #Linux path
-      - '@openzeppelin=C:\Users\KOSTAS\.brownie\packages\OpenZeppelin\openzeppelin-contracts@4.8.1' #Windows path
