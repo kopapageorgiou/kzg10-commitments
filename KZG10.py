@@ -59,45 +59,47 @@ class KZG10(object):
             return LaGrange(self.field)
         elif method == self.MONOMIAL:
             return Monomial(self.field)
+        else:
+            raise ValueError("Invalid method")
         
-    def evalPolyAt(self, coefficients: List[Field], index: Field):
-        result = self.F(0)
-        power_of_x = self.F(1)
+    # def evalPolyAt(self, coefficients: List[Field], index: Field):
+    #     result = self.F(0)
+    #     power_of_x = self.F(1)
 
-        for coeff in coefficients:
-            result = (result + (power_of_x * coeff))
-            power_of_x = (power_of_x * index)
+    #     for coeff in coefficients:
+    #         result = (result + (power_of_x * coeff))
+    #         power_of_x = (power_of_x * index)
 
-        return result
-        """result = self.F(0)
-        n = len(coefficients)
-        for i in range(n):
-            result += coefficients[i] * (index ** (n-i-1))"""
+    #     return result
+    #     """result = self.F(0)
+    #     n = len(coefficients)
+    #     for i in range(n):
+    #         result += coefficients[i] * (index ** (n-i-1))"""
 
-        return result
+    #     return result
     
     def generate_coeffs_random(self, amount: int):
         return [self.F.random() for _ in range(amount-1)]
     
-    def generate_coeffs_for(self, values: List[int]):
-        x_values = []
-        val = []
-        for x, y in enumerate(values):
-            x_values.append(x)
-            val.append(y)
+    # def generate_coeffs_for(self, values: List[int]):
+    #     x_values = []
+    #     val = []
+    #     for x, y in enumerate(values):
+    #         x_values.append(x)
+    #         val.append(y)
 
-        pol = self._lagrange_inter([self.F(x) for x in x_values], [self.F(y) for y in val])
-        return _swap(pol)
+    #     pol = self._lagrange_inter([self.F(x) for x in x_values], [self.F(y) for y in val])
+    #     return _swap(pol)
     
-    def newton_interpolation(self, values: List[int]):
-        x_values = []
-        val = []
-        for x, y in enumerate(values):
-            x_values.append(x)
-            val.append(y)
+    # def newton_interpolation(self, values: List[int]):
+    #     x_values = []
+    #     val = []
+    #     for x, y in enumerate(values):
+    #         x_values.append(x)
+    #         val.append(y)
         
-        pol = self.divided_diff([self.F(x) for x in x_values], [self.F(y) for y in val])[0]
-        return pol
+    #     pol = self.divided_diff([self.F(x) for x in x_values], [self.F(y) for y in val])[0]
+    #     return pol
 
     def divided_diff(self, x,y):
         n = len(y)
@@ -118,24 +120,24 @@ class KZG10(object):
                 coef[i][j] = (coef[i+1][j-1]-coef[i][j-1])/((x[i+j]-x[i]))
         return coef
         
-    def newton_poly(self, coef, x):
-        x_data = [i for i in range(len(coef))]
-        n = len(x_data) - 1
-        p = coef[n]
+    # def newton_poly(self, coef, x):
+    #     x_data = [i for i in range(len(coef))]
+    #     n = len(x_data) - 1
+    #     p = coef[n]
 
-        for k in range(1, n+1):
-            p = coef[n-k] + (x-x_data[n-k])*p
-        return p
+    #     for k in range(1, n+1):
+    #         p = coef[n-k] + (x-x_data[n-k])*p
+    #     return p
     
-    def eval_newton_poly_at(self, coef, x):
-        x_data = [i for i in range(len(coef))]
-        n = len(x_data) - 1
-        p = coef[n]
+    # def eval_newton_poly_at(self, coef, x):
+    #     x_data = [i for i in range(len(coef))]
+    #     n = len(x_data) - 1
+    #     p = coef[n]
 
-        for k in range(1, n+1):
-            p = coef[n-k] + (self.F(x)-self.F(x_data[n-k]))*p
+    #     for k in range(1, n+1):
+    #         p = coef[n-k] + (self.F(x)-self.F(x_data[n-k]))*p
             
-        return p
+    #     return p
     
 
     def generate_proof(self, coefficients: List[Field], index: Field):
@@ -146,7 +148,7 @@ class KZG10(object):
 
     def _genQuotientPolynomial(self, coefficients: List[Field], xVal: Field):
         yVal = self.evalPolyAt(coefficients, xVal)
-        print("Y-val quot:", yVal)
+        #print("Y-val quot:", yVal)
         x = [self.F(0), self.F(1)]
         res = self._divPoly(self._subPoly(coefficients, [yVal]), self._subPoly(x, [xVal]))[0]
         return res
@@ -165,27 +167,12 @@ class KZG10(object):
         #segment_coefficients = self.pre_coeffs(coefficients, xVal)
 
         #yVal = self.evaluate_cubic_spline_seg(segment_coefficients, xVal)
-        print("Y-val quot:", yVal)
+        #print("Y-val quot:", yVal)
         x = [self.F(0), self.F(1)]
         #print("Segment_coefficients:", segment_coefficients)
         res = self._divPoly(self._subPoly(coefficients, [yVal]), self._subPoly(x, [xVal]))[0] # type: ignore
-        print("Res", res)
+        #print("Res", res)
         return res
-    
-    def pre_coeffs(self, coeffs, xVal):
-        n = len(coeffs)
-        x_data = [i for i in range(n)]
-        for i in range(n-1):
-            if x_data[i] <= xVal <= x_data[i+1]:
-                break
-        
-        coefficients = []
-        coefficients.append(coeffs[4*i])
-        coefficients.append(coeffs[4*i+1])
-        coefficients.append(coeffs[4*i+2])
-        coefficients.append(coeffs[4*i+3])
-        #print(type(h), type(t))
-        return coefficients
 
 
     """
@@ -281,35 +268,6 @@ class KZG10(object):
         return output_poly
 
 
-    """def _lagrange_interpolation(self, x_vals, y_vals):
-        n = len(x_vals)
-        coefficients = [self.F(0) for i in range(n)]
-        for i in range(n):
-            numerator = self.F(1)
-            denominator = self.F(1)
-            x_i = x_vals[i]
-            y_i = y_vals[i]
-            for j in range(n):
-                if i == j:
-                    continue
-                numerator *= x_vals[j] - x_i
-                denominator *= x_vals[j] - y_i
-            coefficients[i] = y_i * numerator / denominator
-        return coefficients"""
-    
-    def _lagrange_inter(self, x_vals, y_vals):
-        L = [self.F(0)]
-        k = len(x_vals)
-        for j in range(k):
-            lj = [y_vals[j]]
-            for m in range(k):
-                if m == j:
-                    continue
-                ljm = self._mulPoly([1, -x_vals[m]], [self._RECIPROCAL(int(x_vals[j] - x_vals[m]))])
-                lj = self._mulPoly(lj, ljm)
-            L = self._addPoly(L, lj)
-        return L
-
 
     def _RECIPROCAL(self, a):
         if a == 0:
@@ -333,15 +291,15 @@ class KZG10(object):
         #print(zpoly)
         qPoly = self._divPoly(self._subPoly(poly, ipoly), zpoly)
         #print(qPoly)
-        multiproof = self._polyCommit(qPoly[0])
-        print(multiproof)
+        multiproof = self._multiCommit(qPoly[0])
+        #print(multiproof)
         iCoeffs = _swap(self._lagrange_inter(indices, values))
         #print("here",iCoeffs)
         #print(ipoly)
         return multiproof, iCoeffs, zpoly
 
     
-    def _polyCommit(self, coefficients: List[Field]):
+    def _multiCommit(self, coefficients: List[Field]):
         return reduce(cu.add, [cu.multiply(G2_POINTS[i], int(c_i))
 							        for i, c_i in enumerate(coefficients)])
 
@@ -779,7 +737,7 @@ def format_FQ_G1Point(data: Tuple[Field, Field]):
 
 def format_proof(data):
     p1, p2 = data
-    print(p1, p2)
+    #print(p1, p2)
     x1, x2 = p1.coeffs
     y1, y2 = p2.coeffs
     return ([int(x2),int(x1)],[int(y2),int(y1)])
@@ -812,7 +770,7 @@ def main():
     kzg = KZG10(127)
     coeffs = kzg.generate_coeffs_for([5, 25, 125])
     commit = kzg.generate_commitment(coeffs)
-    print(coeffs)
+    #print(coeffs)
     for i in range(len(coeffs)):
         print(kzg.evalPolyAt(coeffs, kzg.F(i)))
     x = kzg.get_index_x(1)
@@ -842,7 +800,7 @@ class Newton(KZG10):
         newton = []
         k = 0
         for ck, xk in zip(pol[::-1], x_values[::-1]):
-            print(k)
+            #print(k)
             newton = super()._addPoly(super()._mulPoly(newton, [-xk, self.F(1)]), [ck])
             k+=1
         #print(newton)
@@ -879,10 +837,10 @@ class Newton(KZG10):
         ipoly = self._genInterpolatingPoly(poly, indices)
         #print(ipoly)
         zpoly = self._genZeroPoly(indices)
-        print(zpoly)
+        #print(zpoly)
         qPoly = self._divPoly(self._subPoly(poly, ipoly), zpoly)
         #print(qPoly)
-        multiproof = self._polyCommit(qPoly[0])
+        multiproof = self._multiCommit(qPoly[0])
         #print(multiproof)
         #iCoeffs = _swap(self._lagrange_inter(indices, values))
         iCoeffs = self.interpolate(values, indices) #? Should swap?
@@ -949,7 +907,7 @@ class LaGrange(KZG10):
         #print("Y-val quot:", yVal)
         x = [self.F(0), self.F(1)]
         res = super()._divPoly(super()._subPoly(coefficients, [yVal]), super()._subPoly(x, [xVal]))[0]
-        print("Res", res)
+        #print("Res", res)
         return res
 
 class Monomial(KZG10):
@@ -1018,7 +976,7 @@ class Monomial(KZG10):
         y_val = self.eval_monomial_at(coefficients, x_val)
         x = [self.F(0), self.F(1)]
         res = super()._divPoly(super()._subPoly(coefficients, [yVal]), super()._subPoly(x, [xVal]))[0]
-        print("Res", res)
+        #print("Res", res)
         return res
 
 if __name__ == "__main__":
